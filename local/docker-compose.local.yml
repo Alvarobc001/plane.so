@@ -1,0 +1,22 @@
+# Solo para probar en local el mismo docker-compose.yml que despliega EasyPanel.
+# Traefik hace el papel del proxy de EasyPanel (HTTPS con certificado autofirmado
+# en https://plane.localhost) y Mailpit recoge los correos (http://localhost:8025).
+services:
+  traefik:
+    image: traefik:v3.5
+    restart: unless-stopped
+    command:
+      - --entrypoints.websecure.address=:443
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+    ports:
+      - "127.0.0.1:443:443"
+    volumes:
+      # Rutas relativas a la raíz del repo (carpeta del primer -f)
+      - ./local/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on: [proxy]
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"

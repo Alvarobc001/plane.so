@@ -1,0 +1,13 @@
+# Igual que un dominio de EasyPanel: plane.localhost -> servicio "proxy", puerto 80
+http:
+  routers:
+    plane:
+      rule: Host(`plane.localhost`)
+      entryPoints: [websecure]
+      service: plane
+      tls: {}
+  services:
+    plane:
+      loadBalancer:
+        servers:
+          - url: http://proxy:80
