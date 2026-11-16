@@ -6,8 +6,13 @@ Power BI, Excel o cualquier otra herramienta.
 
 Todo se lee con **un token de la API de Plane** y **solo se puede leer**: con un token no se modifica nada.
 
+> **Para quien solo usa Power BI o Excel:** la guía [Guia-Power-BI.pdf](Guia-Power-BI.pdf) explica, sin
+> programar, cómo conectar cada tabla con una dirección web, cómo se relacionan (con un diagrama) y qué trae cada
+> una. Es la forma recomendada; este documento es la referencia técnica.
+
 | Forma | Para quién | Se actualiza |
 | --- | --- | --- |
+| **Una dirección por tabla** ([la guía en PDF](Guia-Power-BI.pdf)) | Quien usa Power BI o Excel: *Obtener datos → Web*, el token en la cabecera `X-API-Key` y listo. Tablas planas, con nombres en vez de códigos | Al pulsar *Actualizar* o con la actualización programada |
 | [A. Carpeta de CSV](#a-carpeta-de-csv) | Lo más sencillo: un comando genera una tabla por fichero y Power BI o Excel las abren | Cada vez que ejecutas el comando (o con una tarea programada) |
 | [B. Power BI directo a la API](#b-power-bi-o-excel-directo-a-la-api) | Informes que se actualizan solos, también en Power BI Service | Al pulsar *Actualizar* o con la actualización programada |
 | [C. La API a mano](#c-la-api-a-mano) | Scripts propios o herramientas que llaman a una API REST | Como lo programes |
@@ -417,6 +422,7 @@ Y del módulo de tiempo, con `T` = `/time/api/w/<espacio>`:
 | Estimaciones en horas | `GET T/estimates` |
 | Capacidad de cada persona | `GET T/capacity` |
 | Carga de trabajo de una semana | `GET T/workload?from=2026-11-16` |
+| Tablas planas para Power BI, en CSV (comas, UTF-8, minutos enteros): `proyectos`, `tareas`, `responsables`, `horas`, `personas`, `ciclos`, `modulos` y `carga` | `GET T/export/<tabla>`. `horas` admite `?desde=` y `?hasta=`; `carga`, lo mismo (hasta tres meses; por defecto, cuatro semanas desde el lunes) |
 | Informe en CSV (para Excel en español: `;` y coma decimal) | `GET T/report?from=2026-01-01&to=2026-12-31&format=csv&user=all` |
 
 El comentario de cada tarea, su historial y sus adjuntos piden una llamada por tarea: con miles de tareas,

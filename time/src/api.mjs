@@ -6,7 +6,7 @@
 //    administradores del espacio (rol 20) las de todos;
 //  - registrar horas o estimar exige ser miembro del proyecto (rol 15 o más), no invitado;
 //  - cada entrada solo la edita o borra quien la registró.
-import { q, one, tx } from './db.mjs';
+import { q, one, tx, pool } from './db.mjs';
 import { workload, weekStart, addDays, range } from './workload.mjs';
 
 export class HttpError extends Error {
@@ -264,54 +264,8 @@ export const routes = {
   'GET workload': async (ctx) => {
     const from = weekStart(date(ctx.query.from ?? today(), 'Semana'));
     const days = range(from, addDays(from, 6));
-    const params = [ctx.user.id, ctx.ws.workspace_id];
-    if (ctx.query.project) params.push(uuid(ctx.query.project, 'Proyecto'));
-    const scope = `select project_id from (${VISIBLE}) v ${ctx.query.project ? 'where v.project_id = $3' : ''}`;
-
-    const people = await q(
-      `select u.id, ${NAME} as name, coalesce(c.minutes_per_day, 480) as minutes_per_day,
-              coalesce(c.workdays, '{1,2,3,4,5}') as workdays
-         from users u
-         join workspace_members wm on wm.member_id = u.id and wm.workspace_id = $2 and wm.is_active and wm.deleted_at is null
-         left join time_tracking.capacity c on c.workspace_id = $2 and c.user_id = u.id
-        where not u.is_bot and exists (
-              select 1 from project_members pm where pm.member_id = u.id and pm.is_active and pm.deleted_at is null
-                 and pm.project_id in (${scope}))
-        order by name`,
-      params,
-    );
-    params.push(days[0], days[6]);
-    const tasks = await q(
-      `select i.id, p.identifier || '-' || i.sequence_id as ref, i.name, p.name as project,
-              i.start_date as start, i.target_date as due, est.minutes,
-              coalesce(array_agg(a.assignee_id) filter (where a.assignee_id is not null), '{}') as assignees
-         from issues i
-         join projects p on p.id = i.project_id
-         join states s on s.id = i.state_id
-         left join time_tracking.estimates est on est.issue_id = i.id
-         left join issue_assignees a on a.issue_id = i.id and a.deleted_at is null
-        where i.project_id in (${scope}) and ${LIVE} and s."group" not in ('completed', 'cancelled')
-          and ((i.start_date is null and i.target_date is null)
-               or (coalesce(i.start_date, i.target_date) <= $${params.length} and coalesce(i.target_date, i.start_date) >= $${params.length - 1}))
-        group by i.id, p.identifier, p.name, est.minutes`,
-      params,
-    );
-    const w = workload({
-      days,
-      people: people.map((p) => ({ id: p.id, minutesPerDay: p.minutes_per_day, workdays: p.workdays })),
-      tasks: tasks.map((t) => ({ ...t, assignees: t.assignees })),
-    });
-
-    // Horas registradas: las propias siempre; las de los demás, solo para administradores
-    const logged = await q(
-      `select user_id, day, sum(minutes)::int as minutes from time_tracking.entries
-        where workspace_id = $1 and day between $2 and $3 and minutes is not null
-          ${ctx.admin ? '' : 'and user_id = $4'}
-        group by user_id, day`,
-      ctx.admin ? [ctx.ws.workspace_id, days[0], days[6]] : [ctx.ws.workspace_id, days[0], days[6], ctx.user.id],
-    );
-    const loggedBy = {};
-    for (const l of logged) (loggedBy[l.user_id] ??= {})[l.day] = l.minutes;
+    if (ctx.query.project) uuid(ctx.query.project, 'Proyecto');
+    const { people, tasks, w, loggedBy } = await loadWorkload(ctx, days, ctx.query.project);
 
     const taskInfo = Object.fromEntries(tasks.map((t) => [t.id, { ref: t.ref, name: t.name, project: t.project, start: t.start, due: t.due, minutes: t.minutes }]));
     return {
@@ -367,13 +321,20 @@ export const routes = {
                 (select string_agg(c.name, ', ' order by c.name) from cycle_issues ci join cycles c on c.id = ci.cycle_id
                   where ci.issue_id = i.id and ci.deleted_at is null and c.deleted_at is null) as cycle,
                 e.minutes, e.source, e.note ${from_()} order by e.day, person`, params);
-      return { csv: toCsv(rows) };
+      return { csv: toCsv(rows), filename: `horas-${from}-${to}.csv` };
     }
     const rows = await q(
       `select ${KEYS[group][0]} as key, ${KEYS[group][1]} as label, sum(e.minutes)::int as minutes, count(*)::int as entries
        ${from_(JOINS[group])} group by 1, 2 order by minutes desc`, params);
     const sum = await one(`select coalesce(sum(e.minutes), 0)::int as total, count(*)::int as entries ${from_()}`, params);
     return { group, from, to, rows, total: sum.total, entries: sum.entries, people: ctx.admin ? 'all' : 'me' };
+  },
+
+  // ---------- Exportación: una tabla CSV por dirección (export/tareas, export/horas...) ----------
+  'GET export/:table': async (ctx) => {
+    const make = Object.hasOwn(EXPORTS, ctx.params.table) && EXPORTS[ctx.params.table];
+    if (!make) throw new HttpError(404, `No existe la tabla «${ctx.params.table}». Tablas: ${Object.keys(EXPORTS).join(', ')}`);
+    return { csv: csvTable(await make(ctx)), filename: `${ctx.params.table}.csv` };
   },
 
   // ---------- Capacidad ----------
@@ -408,6 +369,205 @@ export const routes = {
     return { id: userId, minutes_per_day: perDay, workdays: [...days].sort() };
   },
 };
+
+// Carga planificada (estimaciones repartidas) y horas registradas de cada persona en esos días
+async function loadWorkload(ctx, days, project) {
+  const params = [ctx.user.id, ctx.ws.workspace_id];
+  if (project) params.push(project);
+  const scope = `select project_id from (${VISIBLE}) v ${project ? 'where v.project_id = $3' : ''}`;
+
+  const people = await q(
+    `select u.id, ${NAME} as name, coalesce(c.minutes_per_day, 480) as minutes_per_day,
+            coalesce(c.workdays, '{1,2,3,4,5}') as workdays
+       from users u
+       join workspace_members wm on wm.member_id = u.id and wm.workspace_id = $2 and wm.is_active and wm.deleted_at is null
+       left join time_tracking.capacity c on c.workspace_id = $2 and c.user_id = u.id
+      where not u.is_bot and exists (
+            select 1 from project_members pm where pm.member_id = u.id and pm.is_active and pm.deleted_at is null
+               and pm.project_id in (${scope}))
+      order by name`,
+    params,
+  );
+  params.push(days[0], days.at(-1));
+  const tasks = await q(
+    `select i.id, p.identifier || '-' || i.sequence_id as ref, i.name, p.name as project,
+            i.start_date as start, i.target_date as due, est.minutes,
+            coalesce(array_agg(a.assignee_id) filter (where a.assignee_id is not null), '{}') as assignees
+       from issues i
+       join projects p on p.id = i.project_id
+       join states s on s.id = i.state_id
+       left join time_tracking.estimates est on est.issue_id = i.id
+       left join issue_assignees a on a.issue_id = i.id and a.deleted_at is null
+      where i.project_id in (${scope}) and ${LIVE} and s."group" not in ('completed', 'cancelled')
+        and ((i.start_date is null and i.target_date is null)
+             or (coalesce(i.start_date, i.target_date) <= $${params.length} and coalesce(i.target_date, i.start_date) >= $${params.length - 1}))
+      group by i.id, p.identifier, p.name, est.minutes`,
+    params,
+  );
+  const w = workload({
+    days,
+    people: people.map((p) => ({ id: p.id, minutesPerDay: p.minutes_per_day, workdays: p.workdays })),
+    tasks,
+  });
+
+  // Horas registradas: las propias siempre; las de los demás, solo para administradores
+  const logged = await q(
+    `select user_id, day, sum(minutes)::int as minutes from time_tracking.entries
+      where workspace_id = $1 and day between $2 and $3 and minutes is not null
+        ${ctx.admin ? '' : 'and user_id = $4'}
+      group by user_id, day`,
+    ctx.admin ? [ctx.ws.workspace_id, days[0], days.at(-1)] : [ctx.ws.workspace_id, days[0], days.at(-1), ctx.user.id],
+  );
+  const loggedBy = {};
+  for (const l of logged) (loggedBy[l.user_id] ??= {})[l.day] = l.minutes;
+  return { people, tasks, w, loggedBy };
+}
+
+// ---------- Exportación para Power BI y Excel ----------
+// Una tabla plana por dirección, con cabeceras en español y nombres en vez de códigos internos.
+// Mismos permisos que el resto: proyectos de los que se es miembro; horas propias, o de todos si es administrador.
+const ROLE = `case when wm.role >= 20 then 'Administrador' when wm.role >= 15 then 'Miembro' else 'Invitado' end`;
+const YES = (cond) => `case when ${cond} then 'Sí' else 'No' end`;
+const REF = `p.identifier || '-' || i.sequence_id`;
+// Tareas que existen para la persona: sin borrar, no borradores y fuera de un intake sin aceptar (sí las archivadas)
+const EXISTING = `
+  i.deleted_at is null and not i.is_draft
+  and not exists (select 1 from intake_issues ii where ii.issue_id = i.id and ii.status <> 1 and ii.deleted_at is null)`;
+
+async function table(sql, params) {
+  const r = await pool.query(sql, params);
+  return { cols: r.fields.map((f) => f.name), rows: r.rows };
+}
+
+const EXPORTS = {
+  proyectos: (ctx) => table(
+    `select p.id as "ID proyecto", p.identifier as "Código proyecto", p.name as "Proyecto",
+            (select ${NAME} from users u where u.id = p.project_lead_id) as "Responsable del proyecto",
+            p.created_at::date as "Creado"
+       from projects p where p.id in (${VISIBLE}) order by p.name`,
+    [ctx.user.id, ctx.ws.workspace_id]),
+
+  tareas: (ctx) => table(
+    `select i.id as "ID tarea", ${REF} as "Código", i.name as "Tarea", p.id as "ID proyecto", p.name as "Proyecto",
+            s.name as "Estado",
+            case s."group" when 'backlog' then 'Pendiente' when 'unstarted' then 'Sin empezar' when 'started' then 'En curso'
+                           when 'completed' then 'Hecha' when 'cancelled' then 'Cancelada' end as "Tipo de estado",
+            case i.priority when 'urgent' then 'Urgente' when 'high' then 'Alta' when 'medium' then 'Media'
+                            when 'low' then 'Baja' else 'Sin prioridad' end as "Prioridad",
+            (select string_agg(${NAME}, ', ' order by ${NAME}) from issue_assignees a join users u on u.id = a.assignee_id
+              where a.issue_id = i.id and a.deleted_at is null) as "Responsables",
+            (select string_agg(l.name, ', ' order by l.name) from issue_labels il join labels l on l.id = il.label_id
+              where il.issue_id = i.id and il.deleted_at is null and l.deleted_at is null) as "Etiquetas",
+            i.start_date as "Inicio", i.target_date as "Entrega", i.completed_at::date as "Completada", i.created_at::date as "Creada",
+            (select pp.identifier || '-' || pi.sequence_id from issues pi join projects pp on pp.id = pi.project_id
+              where pi.id = i.parent_id) as "Tarea padre",
+            (select c.id from cycle_issues ci join cycles c on c.id = ci.cycle_id
+              where ci.issue_id = i.id and ci.deleted_at is null and c.deleted_at is null limit 1) as "ID ciclo",
+            (select c.name from cycle_issues ci join cycles c on c.id = ci.cycle_id
+              where ci.issue_id = i.id and ci.deleted_at is null and c.deleted_at is null limit 1) as "Ciclo",
+            (select string_agg(m.name, ', ' order by m.name) from module_issues mi join modules m on m.id = mi.module_id
+              where mi.issue_id = i.id and mi.deleted_at is null and m.deleted_at is null) as "Módulos",
+            est.minutes as "Minutos estimados",
+            coalesce((select sum(e.minutes) from time_tracking.entries e
+                       where e.issue_id = i.id and e.minutes is not null ${ctx.admin ? '' : 'and e.user_id = $1'}), 0)::int
+              as "Minutos registrados",
+            ${YES('i.archived_at is not null')} as "Archivada"
+       from issues i
+       join projects p on p.id = i.project_id
+       join states s on s.id = i.state_id
+       left join time_tracking.estimates est on est.issue_id = i.id
+      where i.project_id in (${VISIBLE}) and ${EXISTING}
+      order by p.identifier, i.sequence_id`,
+    [ctx.user.id, ctx.ws.workspace_id]),
+
+  responsables: (ctx) => table(
+    `select i.id as "ID tarea", ${REF} as "Código", u.id as "ID persona", ${NAME} as "Persona"
+       from issue_assignees a
+       join issues i on i.id = a.issue_id
+       join projects p on p.id = i.project_id
+       join users u on u.id = a.assignee_id
+      where a.deleted_at is null and i.project_id in (${VISIBLE}) and ${EXISTING}
+      order by p.identifier, i.sequence_id, 4`,
+    [ctx.user.id, ctx.ws.workspace_id]),
+
+  horas: (ctx) => {
+    const params = [ctx.ws.workspace_id];
+    let where = '';
+    if (!ctx.admin) { params.push(ctx.user.id); where += ` and e.user_id = $${params.length}`; }
+    if (ctx.query.desde) { params.push(date(ctx.query.desde, 'Desde')); where += ` and e.day >= $${params.length}`; }
+    if (ctx.query.hasta) { params.push(date(ctx.query.hasta, 'Hasta')); where += ` and e.day <= $${params.length}`; }
+    return table(
+      `select e.id as "ID registro", e.day as "Día", u.id as "ID persona", ${NAME} as "Persona",
+              p.name as "Proyecto", i.id as "ID tarea", ${REF} as "Código", i.name as "Tarea",
+              e.minutes as "Minutos", case e.source when 'timer' then 'Reloj' else 'Manual' end as "Origen", e.note as "Nota"
+         from time_tracking.entries e
+         join issues i on i.id = e.issue_id
+         join projects p on p.id = e.project_id
+         join users u on u.id = e.user_id
+        where e.workspace_id = $1 and e.minutes is not null ${where}
+        order by e.day, e.created_at`,
+      params);
+  },
+
+  personas: (ctx) => table(
+    `select u.id as "ID persona", ${NAME} as "Persona", ${ROLE} as "Rol",
+            coalesce(c.minutes_per_day, 480) as "Minutos al día",
+            array_to_string(array(select (array['lun','mar','mié','jue','vie','sáb','dom'])[d]
+                                    from unnest(coalesce(c.workdays, '{1,2,3,4,5}')) d order by d), ' ') as "Días laborables"
+       from workspace_members wm join users u on u.id = wm.member_id
+       left join time_tracking.capacity c on c.workspace_id = wm.workspace_id and c.user_id = u.id
+      where wm.workspace_id = $1 and wm.is_active and wm.deleted_at is null and not u.is_bot
+      order by 2`,
+    [ctx.ws.workspace_id]),
+
+  ciclos: (ctx) => table(
+    `select c.id as "ID ciclo", p.name as "Proyecto", c.name as "Ciclo", c.start_date::date as "Inicio",
+            c.end_date::date as "Fin", ${YES('c.archived_at is not null')} as "Archivado"
+       from cycles c join projects p on p.id = c.project_id
+      where c.deleted_at is null and c.project_id in (${VISIBLE})
+      order by p.name, c.start_date nulls last`,
+    [ctx.user.id, ctx.ws.workspace_id]),
+
+  modulos: (ctx) => table(
+    `select m.id as "ID módulo", p.id as "ID proyecto", p.name as "Proyecto", m.name as "Módulo",
+            case m.status when 'backlog' then 'Pendiente' when 'planned' then 'Planificado' when 'in-progress' then 'En curso'
+                          when 'paused' then 'En pausa' when 'completed' then 'Completado' when 'cancelled' then 'Cancelado' end as "Estado",
+            m.start_date as "Inicio", m.target_date as "Entrega",
+            (select ${NAME} from users u where u.id = m.lead_id) as "Responsable", ${YES('m.archived_at is not null')} as "Archivado"
+       from modules m join projects p on p.id = m.project_id
+      where m.deleted_at is null and m.project_id in (${VISIBLE})
+      order by p.name, m.name`,
+    [ctx.user.id, ctx.ws.workspace_id]),
+
+  // Por persona y día: capacidad, horas planificadas (estimaciones repartidas) y registradas. 4 semanas por defecto.
+  carga: async (ctx) => {
+    const from = date(ctx.query.desde ?? weekStart(today()), 'Desde');
+    const to = date(ctx.query.hasta ?? addDays(from, 27), 'Hasta');
+    if (from > to) throw bad('La fecha de inicio va después de la de fin');
+    const days = range(from, to);
+    if (days.length > 93) throw bad('El periodo no puede pasar de tres meses');
+    const { people, w, loggedBy } = await loadWorkload(ctx, days);
+    const cols = ['ID persona', 'Persona', 'Día', 'Capacidad (min)', 'Planificado (min)', 'Registrado (min)'];
+    const rows = people.flatMap((p) => days.map((d) => {
+      const day = w.rows[p.id].days[d];
+      const own = ctx.admin || p.id === ctx.user.id;
+      const r = [p.id, p.name, d, day.capacity, Math.round(day.planned), own ? (loggedBy[p.id]?.[d] ?? 0) : null];
+      return Object.fromEntries(cols.map((c, i) => [c, r[i]]));
+    }));
+    return { cols, rows };
+  },
+};
+
+// CSV estándar (comas, UTF-8): Power BI y Excel lo abren sin preguntar. Números enteros y fechas AAAA-MM-DD,
+// para que no dependa de la configuración regional. Las celdas que empiezan por = + - @ se neutralizan.
+function csvTable({ cols, rows }) {
+  const cell = (v) => {
+    let s = v === null || v === undefined ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return `\ufeff${[cols.map(cell).join(','), ...rows.map((r) => cols.map((c) => cell(r[c])).join(','))].join('\r\n')}\r\n`;
+}
 
 // Filtro de persona: por defecto, uno mismo; otra persona o "all" solo para administradores
 function whoFilter(ctx, user, n = 4) {

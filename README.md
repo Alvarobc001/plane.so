@@ -397,7 +397,9 @@ Plane cambia esa estructura, los campos de tiempo dejan de aparecer pero Plane s
 - las escrituras solo se aceptan desde el propio dominio (protección CSRF).
 - con un token de la API de Plane (cabecera `X-API-Key`) solo se **leen** horas, estimaciones y capacidad,
   con los mismos permisos de su usuario; con un token no se registra ni se borra nada. Así se conectan Power
-  BI, Excel o scripts: ver [docs/extraer-datos.md](docs/extraer-datos.md).
+  BI, Excel o scripts: cada tabla tiene su dirección (`/time/api/w/<espacio>/export/tareas`, `.../horas`…).
+  Guía para quien hace los informes: [docs/Guia-Power-BI.pdf](docs/Guia-Power-BI.pdf); referencia técnica:
+  [docs/extraer-datos.md](docs/extraer-datos.md).
 
 Los datos van en la misma base de datos de Plane, en un esquema aparte (`time_tracking`) que el servicio crea
 al arrancar. No toca ninguna tabla de Plane, y las copias de la sección 7 ya lo incluyen.

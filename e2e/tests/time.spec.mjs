@@ -216,6 +216,20 @@ test('Power BI y scripts: con un token de la API de Plane se leen las horas, per
     expect(JSON.parse(mine.text).every((e) => e.user_id === sofia)).toBe(true);
     expect((await nodeRequest('GET', `${API}/entries?${year}&user=all`, key)).status).toBe(403); // las de otros, no
     expect(JSON.parse((await nodeRequest('GET', `${API}/estimates`, key)).text).length).toBeGreaterThan(0);
+    // Tablas para Power BI (una dirección por tabla): con el token de un miembro, solo sus horas
+    const rows = (text) => text.replace(/^﻿/, '').trimEnd().split('\r\n').slice(1).map((l) => l.split(','));
+    const horas = await nodeRequest('GET', `${API}/export/horas`, key);
+    expect(horas.status).toBe(200);
+    expect(horas.text).toContain('ID registro,Día,ID persona,Persona');
+    expect(rows(horas.text).length).toBeGreaterThan(0);
+    expect(rows(horas.text).every((r) => r[2] === sofia)).toBe(true);
+    const carga = rows((await nodeRequest('GET', `${API}/export/carga`, key)).text);
+    expect(carga.some((r) => r[0] !== sofia)).toBe(true); // ve la carga planificada de todos…
+    expect(carga.filter((r) => r[0] !== sofia).every((r) => r[5] === '')).toBe(true); // …pero no lo que registran
+    expect((await nodeRequest('GET', `${API}/export/tareas`, key)).text).toContain('Código,Tarea');
+    expect((await nodeRequest('GET', `${API}/export/noexiste`, key)).status).toBe(404);
+    const todas = await browserFetch(admin, `${API}/export/horas`); // el administrador, las de todo el equipo
+    expect(new Set(rows(todas.text).map((r) => r[2])).size).toBeGreaterThan(1);
     // Solo lectura: con el token no se escribe, aunque llegue con el Origin del propio dominio
     expect(await nodePost(`${API}/timer/stop`, { ...key, origin: new URL(env.PLANE_URL).origin })).toBe(401);
     expect((await nodeRequest('GET', '/time/api/me', { 'X-API-Key': 'plane_api_no_existe' })).status).toBe(401);
