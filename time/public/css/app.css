@@ -110,6 +110,21 @@ input, textarea { caret-color: var(--accent); }
 .topbar .grow { flex: 1; }
 main { flex: 1; overflow: auto; padding: 24px; }
 
+/* Dentro de Plane: el armazón lo pone Plane */
+.embed .shell { grid-template-columns: 1fr; }
+.embed .rail, .embed .timer { display: none; }
+.embed body { background: var(--surface); }
+.embed .sheet { margin: 0; border: 0; border-radius: 0; }
+.embed .topbar { padding: 0 20px; }
+.tabs { display: flex; gap: 2px; }
+.tabs a {
+  height: 28px; padding: 0 10px; border-radius: var(--radius-control); display: inline-flex; align-items: center;
+  color: var(--muted); text-decoration: none; font-size: var(--fs-cell); font-weight: 500; white-space: nowrap;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.tabs a:hover { background: var(--active); color: var(--text); }
+.tabs a[aria-current="page"] { background: var(--active); color: var(--text); }
+
 /* ---------- Reloj de la barra superior ---------- */
 .timer { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .timer .task { display: flex; flex-direction: column; min-width: 0; max-width: 340px; text-align: right; }

@@ -145,6 +145,49 @@ test('carga de trabajo: con menos capacidad, la persona aparece sobre capacidad'
   }
 });
 
+// Dentro de la web de Plane (time/public/embed.js): los campos viven en la propia tarea
+test('dentro de Plane: el estimado de la tarea mueve la carga; reloj y registro desde la tarea', async () => {
+  const task = (await call(member, 'GET', 'tasks?q=RES-17')).data.find((t) => t.ref === 'RES-17');
+  const planned = async () =>
+    (await call(member, 'GET', `workload?from=${task.due ?? task.start}`)).data.people.find((p) => p.name.startsWith('Sofia')).planned;
+  const before = await planned();
+  await member.goto('/acme/browse/RES-17/', { waitUntil: 'networkidle' });
+  const estimate = member.locator('[data-time-estimate]');
+  await expect(estimate).toHaveText(`${task.estimate / 60} h`);
+  try {
+    await estimate.click();
+    await member.locator('[data-time-row] input').fill(`${task.estimate / 60 + 8}h`);
+    await member.keyboard.press('Enter');
+    await expect(estimate).toHaveText(`${task.estimate / 60 + 8} h`);
+    expect(await planned()).toBeGreaterThan(before);
+  } finally {
+    await call(member, 'PUT', `tasks/${task.id}/estimate`, { minutes: task.estimate });
+  }
+
+  // Reloj desde la tarea: aparece en la cabecera de Plane y se para desde ahí
+  await member.locator('[data-time-row] .time-play').click();
+  await expect(member.locator('.time-pill')).toContainText('RES-17');
+  await member.locator('.time-pill .time-play').click();
+  await expect(member.locator('.time-pill')).toHaveCount(0);
+
+  // Registro manual en el desplegable del tiempo registrado
+  await member.locator('[data-time-tracked]').click();
+  const popover = member.locator('.time-popover');
+  await popover.locator('input').first().fill('0:15');
+  await popover.locator('input').nth(2).fill('Prueba E2E');
+  await popover.locator('button[type=submit]').click();
+  await expect(popover).toContainText('Prueba E2E');
+});
+
+test('dentro de Plane: «Carga de trabajo» en la barra lateral abre el módulo sobre el contenido', async () => {
+  await member.goto('/acme/browse/RES-17/', { waitUntil: 'networkidle' });
+  await member.locator('[data-time-nav]').click();
+  await expect(member).toHaveURL(/\/acme\/\?tiempo=carga$/);
+  await expect(member.frameLocator('iframe.time-frame').locator('.tabs a[aria-current="page"]')).toHaveText('Carga de trabajo');
+  await member.goBack();
+  await expect(member.locator('iframe.time-frame')).toHaveCount(0);
+});
+
 test('informes: exportar CSV con lo registrado hoy', async () => {
   const today = new Date().toLocaleDateString('sv');
   const csv = await browserFetch(member, `${API}/report?from=${today}&to=${today}&format=csv`);

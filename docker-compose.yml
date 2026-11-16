@@ -78,6 +78,9 @@ services:
     image: makeplane/plane-frontend:v1.4.3
     restart: always
     depends_on: [api, worker]
+    volumes:
+      # Módulo de tiempo dentro de Plane: el script añade su <script> al index.html al arrancar
+      - ./time/plane-web/40-time-embed.sh:/docker-entrypoint.d/40-time-embed.sh:ro
 
   space:
     image: makeplane/plane-space:v1.4.3

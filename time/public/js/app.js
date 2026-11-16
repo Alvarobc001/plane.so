@@ -4,6 +4,10 @@ import { formatClock } from './duration.js';
 import { views } from './views.js';
 
 export const state = { me: null, workspaces: [], slug: null, role: 0, timer: null, offset: 0 };
+// Dentro de Plane (iframe de «Carga de trabajo»): sin barra de iconos propia y con pestañas arriba
+export const EMBED = new URLSearchParams(location.search).has('embed') && window.top !== window;
+if (EMBED) document.documentElement.classList.add('embed');
+const channel = new BroadcastChannel('plane-time'); // cambios hechos desde los campos de las tareas de Plane
 
 const NAV = [
   ['carga', 'Carga de trabajo', 'load'],
@@ -21,7 +25,11 @@ function route() {
 export const go = (view, params) => {
   location.hash = `#/${encodeURIComponent(state.slug)}/${view}${params ? `?${new URLSearchParams(params)}` : ''}`;
 };
-export const changed = () => window.dispatchEvent(new Event('timechange'));
+export const changed = () => {
+  window.dispatchEvent(new Event('timechange'));
+  channel.postMessage('entries');
+};
+channel.onmessage = () => loadTimer().then(() => window.dispatchEvent(new Event('timechange'))).catch(() => {});
 
 function renderRail(current) {
   const rail = document.querySelector('.rail');
@@ -33,6 +41,12 @@ function renderRail(current) {
     }, icon(ic))),
     h('div', { class: 'spacer' }),
   );
+}
+
+// Dentro de Plane, las pantallas son pestañas, como las vistas de Plane
+function renderTabs(current) {
+  document.querySelector('.crumbs').replaceChildren(h('nav', { class: 'tabs', 'aria-label': 'Tiempo' },
+    NAV.map(([id, label]) => h('a', { href: `#/${encodeURIComponent(state.slug)}/${id}`, 'aria-current': id === current ? 'page' : null }, label))));
 }
 
 function renderCrumbs(label) {
@@ -183,7 +197,7 @@ async function render() {
   state.role = ws.role;
   const nav = NAV.find(([id]) => id === r.view) ?? NAV[0];
   renderRail(nav[0]);
-  renderCrumbs(nav[1]);
+  if (EMBED) renderTabs(nav[0]); else renderCrumbs(nav[1]);
   const main = document.getElementById('view');
   current?.dispose?.();
   document.querySelectorAll('.drawer').forEach((d) => d.remove());
@@ -203,6 +217,11 @@ async function boot() {
     return;
   }
   window.addEventListener('hashchange', render);
+  // Los enlaces a Plane se abren en Plane, no dentro del iframe
+  if (EMBED) document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="/"]');
+    if (a && !a.getAttribute('href').startsWith('/time/')) a.target = '_top';
+  });
   // Al volver a la pestaña, el reloj puede haber cambiado desde otro dispositivo
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadTimer().catch(() => {}); });
   render();

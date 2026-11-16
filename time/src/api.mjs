@@ -156,6 +156,34 @@ export const routes = {
     );
   },
 
+  // Tiempo de una tarea por su código (RES-16): lo que muestran los campos dentro de la tarea de Plane
+  'GET tasks/by-ref/:ref': async (ctx) => {
+    const m = /^([A-Za-z0-9]{1,12})-(\d{1,9})$/.exec(ctx.params.ref);
+    if (!m) throw bad('Código de tarea no válido');
+    const t = await one(
+      `select i.id, p.identifier || '-' || i.sequence_id as ref, i.name, est.minutes as estimate, pm.role,
+              coalesce((select sum(minutes) from time_tracking.entries e where e.issue_id = i.id and e.user_id = $1), 0)::int as mine,
+              case when $5 then coalesce((select sum(minutes) from time_tracking.entries e where e.issue_id = i.id), 0)::int end as team
+         from issues i
+         join projects p on p.id = i.project_id and p.deleted_at is null
+         join project_members pm on pm.project_id = p.id and pm.member_id = $1 and pm.is_active and pm.deleted_at is null
+         left join time_tracking.estimates est on est.issue_id = i.id
+        where i.workspace_id = $2 and p.identifier = upper($3) and i.sequence_id = $4 and i.deleted_at is null`,
+      [ctx.user.id, ctx.ws.workspace_id, m[1], Number(m[2]), ctx.admin],
+    );
+    if (!t) throw new HttpError(404, 'Tarea no encontrada');
+    // Las entradas: las propias; los administradores, las de todos
+    const entries = await q(
+      `select e.id, e.day, e.minutes, e.note, e.source, e.user_id, ${NAME} as person
+         from time_tracking.entries e join users u on u.id = e.user_id
+        where e.issue_id = $1 and e.minutes is not null ${ctx.admin ? '' : 'and e.user_id = $2'}
+        order by e.day desc, e.created_at desc limit 50`,
+      ctx.admin ? [t.id] : [t.id, ctx.user.id],
+    );
+    const { role, ...task } = t;
+    return { ...task, can_log: role >= 15, entries };
+  },
+
   'PUT tasks/:id/estimate': async (ctx) => {
     const issue = await writableIssue(ctx, ctx.params.id);
     if (ctx.body.minutes === null) {

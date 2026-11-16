@@ -9,7 +9,7 @@ adaptado a EasyPanel y con cuatro correcciones que encontraron las pruebas autom
 [Correcciones](#correcciones-respecto-al-compose-oficial)). Añade un **módulo de tiempo** al estilo de ClickUp
 (reloj por tarea, hoja de horas, carga de trabajo frente a capacidad e informes) en `https://tu-dominio/time/`,
 con la misma sesión de Plane (ver [sección 6](#6-módulo-de-tiempo)). La batería de Playwright de
-[`e2e/`](e2e/) pasa **21/21** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
+[`e2e/`](e2e/) pasa **23/23** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
 
 ```
 docker-compose.yml     el que despliega EasyPanel
@@ -265,9 +265,28 @@ D=plane.tudominio.com; J=$(mktemp); T=$(curl -s -c $J https://$D/auth/get-csrf-t
 
 ## 6. Módulo de tiempo
 
-Plane Community no registra horas (los *worklogs* son de sus planes de pago). Este repositorio añade un
-servicio `time` que lo hace al estilo de ClickUp. Se abre en `https://plane.tudominio.com/time/` con la
-sesión de Plane: si no hay sesión, lleva al login de Plane y vuelve.
+Plane Community no registra horas (los *worklogs* y las estimaciones en horas son de sus planes de pago).
+Este repositorio añade un servicio `time` que lo hace al estilo de ClickUp, **dentro de la propia web de
+Plane** y con su sesión:
+
+- **En cada tarea** (página de la tarea y panel lateral), debajo de *Estimate*, dos propiedades más con el
+  mismo aspecto que las de Plane:
+  - **Time estimate / Tiempo estimado**: se pulsa y se escribe (`16h`, `1:30`, `90m`). Al guardarlo, la
+    carga de trabajo de sus responsables cambia en el momento.
+  - **Time tracked / Tiempo registrado**: lo registrado frente a lo estimado (en rojo si se pasa), el botón
+    ▶ para empezar o parar el reloj, y al pulsar el total, un desplegable para apuntar tiempo a mano y ver
+    o borrar las entradas.
+- **En la cabecera**, mientras corre el reloj: la tarea, el tiempo que lleva y el botón de parar.
+- **En la barra lateral**, *Workload / Carga de trabajo*: abre el módulo en el área de contenido de Plane,
+  con pestañas para el resto de pantallas.
+
+Cómo encaja la carga con el estimado, igual que en ClickUp: las horas estimadas de una tarea se reparten
+a partes iguales entre sus responsables y entre los días laborables desde su inicio hasta su entrega
+(*Start date* y *Due date* de Plane). Cambiar el estimado, las fechas o los responsables en la tarea mueve
+la carga al instante. Las tareas terminadas o canceladas no cuentan. El *Estimate* propio de Plane (puntos)
+sigue siendo independiente.
+
+El módulo también se abre solo, en `https://plane.tudominio.com/time/`.
 
 | Pantalla | Qué hace |
 | --- | --- |
@@ -281,12 +300,11 @@ El **reloj** está siempre en la barra superior: se empieza en cualquier tarea, 
 la pestaña o cambies de dispositivo (vive en el servidor) y al pararlo registra el tiempo. Empezar otra tarea
 para la anterior.
 
-**Desde una tarea de Plane**, este marcador del navegador abre el módulo y propone empezar el reloj en esa
-tarea (crea un marcador nuevo y pega esto como URL):
-
-```text
-javascript:(()=>{const m=location.pathname.match(/^\/([^/]+)\/browse\/([A-Za-z0-9]+-\d+)/);if(!m)return alert('Abre antes una tarea de Plane (…/browse/CLAVE-123/)');open('/time/#/'+m[1]+'/tareas?start='+m[2])})()
-```
+**Cómo entra en Plane.** Sin cambiar la imagen de Plane: al arrancar el servicio `web`, el script
+`time/plane-web/40-time-embed.sh` añade una línea a su `index.html` que carga `time/public/embed.js`. Ese
+script reconoce las propiedades de la tarea por su estructura y añade las suyas. Si una versión nueva de
+Plane cambia esa estructura, los campos de tiempo dejan de aparecer pero Plane sigue funcionando igual
+(ver sección 8). La pantalla de carga sale siempre en tema claro.
 
 **Permisos y datos personales.** Las horas registradas dicen cuánto trabaja cada persona, así que:
 
@@ -352,7 +370,10 @@ de datos no sirve. Lleva las copias fuera del servidor (otro proveedor, S3, etc.
      docker run --rm makeplane/plane-proxy:vX.Y.Z cat /etc/caddy/Caddyfile > upstream/Caddyfile && git diff upstream/Caddyfile
      ```
 
-  5. Pasa las pruebas en local (sección 10), haz `git push` y pulsa **Deploy** en EasyPanel.
+  5. Pasa las pruebas en local (sección 10). Las del módulo de tiempo comprueban también que los campos
+     siguen apareciendo dentro de las tareas de Plane: si fallan, la versión nueva cambió su estructura y
+     hay que adaptar `time/public/embed.js`.
+  6. Haz `git push` y pulsa **Deploy** en EasyPanel.
 
 Nunca bajes de versión con los mismos volúmenes: las migraciones de la base de datos no se deshacen.
 

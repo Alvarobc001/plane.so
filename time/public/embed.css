@@ -1,0 +1,64 @@
+/* Módulo de tiempo dentro de Plane: solo variables de Plane, así sigue su tema claro u oscuro. */
+.time-play {
+  flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 9999px;
+  border: 1px solid var(--border-color-subtle-1, #e5e7eb); background: var(--background-color-layer-2, #fff);
+  color: var(--text-color-secondary, #4b5563); cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.23, 1, 0.32, 1), transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.time-play:hover { background: var(--background-color-layer-1-hover, #f3f4f6); }
+.time-play:active { transform: scale(0.96); }
+.time-play:disabled { opacity: 0.5; cursor: not-allowed; }
+.time-play.running { background: var(--background-color-accent-primary, #3f76ff); border-color: transparent; color: #fff; }
+.time-over { color: var(--text-color-danger-primary, var(--border-color-danger-strong, #dc2626)); }
+.time-clock { font-variant-numeric: tabular-nums; }
+
+.time-input {
+  width: 100%; height: 30px; padding: 0 6px; border-radius: 4px; font: inherit; font-size: 13px;
+  border: 1px solid var(--border-color-subtle-1, #e5e7eb); background: var(--background-color-layer-2, #fff);
+  color: var(--text-color-primary, #111827); outline: none;
+}
+.time-input:focus { border-color: var(--border-color-accent-strong, #3f76ff); }
+.time-input[aria-invalid="true"] { border-color: var(--border-color-danger-strong, #dc2626); }
+
+.time-popover {
+  position: fixed; z-index: 60; width: 340px; max-height: 320px; overflow: auto; padding: 8px;
+  border-radius: 8px; border: 1px solid var(--border-color-subtle-1, #e5e7eb);
+  background: var(--background-color-surface-1, #fff); color: var(--text-color-primary, #111827);
+  box-shadow: 0 1px 3px rgba(41, 47, 61, 0.05), 0 8px 24px rgba(41, 47, 61, 0.12); font-size: 13px; line-height: 18px;
+  transform-origin: top left; animation: time-pop 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes time-pop { from { opacity: 0; transform: scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { .time-popover { animation: none; } }
+.time-add { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color-subtle, #f3f4f6); }
+.time-add input:nth-child(3) { grid-column: 1 / -1; }
+.time-primary {
+  grid-column: 1 / -1; height: 28px; border: 0; border-radius: 4px; cursor: pointer; font: inherit; font-weight: 500;
+  background: var(--background-color-accent-primary, #3f76ff); color: #fff;
+}
+.time-primary:hover { background: var(--background-color-accent-primary-hover, #2f66ef); }
+.time-entries { list-style: none; margin: 0; padding: 4px 0 0; }
+.time-entries li { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 4px; border-radius: 4px; }
+.time-entries li + li { border-top: 1px solid var(--border-color-subtle, #f3f4f6); }
+.time-entry-main b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.time-entry-note { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.time-link { grid-row: 1; grid-column: 2; border: 0; background: none; padding: 0; font: inherit; cursor: pointer; color: var(--text-color-tertiary, #6b7280); }
+.time-link:hover { color: var(--border-color-danger-strong, #dc2626); }
+
+/* Reloj en marcha en la cabecera de Plane */
+.time-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 3px 0 8px; margin-right: 4px;
+  border-radius: 6px; border: 1px solid var(--border-color-subtle-1, #e5e7eb); background: var(--background-color-layer-2, #fff);
+  font-size: 13px; color: var(--text-color-primary, #111827);
+}
+.time-pill-task { color: var(--text-color-secondary, #4b5563); text-decoration: none; font-weight: 500; }
+.time-pill-task:hover { text-decoration: underline; }
+.time-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--background-color-accent-primary, #3f76ff); }
+@media (prefers-reduced-motion: no-preference) { .time-dot { animation: time-live 2s ease-in-out infinite; } }
+@keyframes time-live { 50% { opacity: 0.35; } }
+
+/* «Carga de trabajo» abierta: el módulo ocupa el área de contenido de Plane */
+[data-time-nav][aria-current] > div { background: var(--background-color-layer-transparent-active, rgba(0, 0, 0, 0.06)); color: var(--text-color-primary, #111827); }
+/* En la capa de utilidades de Plane (Tailwind v4): ahí su !bg-… marca el Inicio como activo */
+@layer utilities { [data-time-muted] > div { background-color: transparent !important; color: var(--text-color-secondary, #4b5563) !important; } }
+/* Por encima de la cabecera de Plane (z 18) y por debajo de su barra lateral, menús y modales (z 20 o más) */
+.time-frame { position: fixed; z-index: 19; border: 0; background: var(--background-color-surface-1, #fff); }

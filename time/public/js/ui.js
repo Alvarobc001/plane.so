@@ -54,7 +54,8 @@ export async function api(path, { method = 'GET', body } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (r.status === 401) {
-    location.href = `/?next_path=${encodeURIComponent('/time/' + location.hash)}`;
+    if (window.top !== window) window.top.location.reload(); // dentro de Plane: que Plane pida el login
+    else location.href = `/?next_path=${encodeURIComponent('/time/' + location.hash)}`;
     throw new ApiError(401, 'Sesión caducada');
   }
   const type = r.headers.get('content-type') || '';
