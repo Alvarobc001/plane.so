@@ -7,3 +7,8 @@ e2e/node_modules/
 e2e/test-results/
 e2e/playwright-report/
 graphify-out/
+scripts/.env
+scripts/export/
+time/node_modules/
+# Notas de trabajo de la skill de diseño
+.taste-skill/

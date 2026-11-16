@@ -6,6 +6,7 @@
 #  - TRUSTED_PROXIES llega al proxy (en el oficial no llegaba y se podia falsear X-Forwarded-For).
 #  - Parche de adjuntos de texto (makeplane/plane#10128) montado en la API.
 #  - Los secretos son obligatorios: si falta alguno, el despliegue se para con un mensaje.
+#  - Servicio `time` (módulo de tiempo, carpeta time/) y ruta /time/ en el proxy (proxy/Caddyfile).
 
 x-db-env: &db-env
   PGHOST: plane-db
@@ -170,6 +171,18 @@ services:
     volumes:
       - uploads:/export
 
+  # Módulo de tiempo (carpeta time/): reloj, hoja de horas, carga de trabajo e informes.
+  # Se sirve en https://<dominio>/time/ a través del proxy y usa la sesión de Plane.
+  time:
+    build: ./time
+    image: plane-time:local
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://plane:${POSTGRES_PASSWORD}@plane-db:5432/plane
+      PLANE_API_URL: http://api:8000
+      APP_ORIGIN: https://${APP_DOMAIN}
+    depends_on: [plane-db, api]
+
   # Punto de entrada: en EasyPanel, el dominio apunta a este servicio, puerto 80.
   proxy:
     image: makeplane/plane-proxy:v1.4.3
@@ -182,7 +195,9 @@ services:
     volumes:
       - proxy_config:/config
       - proxy_data:/data
-    depends_on: [web, api, space, admin, live]
+      # Caddyfile oficial (upstream/Caddyfile) más la ruta /time/ del módulo de tiempo
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on: [web, api, space, admin, live, time]
 
 volumes:
   pgdata:

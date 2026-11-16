@@ -1,0 +1,2 @@
+Inter (https://rsms.me/inter/), de Rasmus Andersson, con licencia SIL Open Font License 1.1.
+Copiada de la imagen makeplane/plane-frontend:v1.4.3 para usar la misma tipografía que Plane.

@@ -90,6 +90,9 @@ test('app: inicio de sesión y onboarding hasta el espacio de trabajo', async ({
     await page.getByRole('button', { name: '2-10' }).click();
     await page.getByRole('button', { name: 'Create workspace' }).click();
     await page.getByRole('button', { name: 'I’ll do it later' }).click();
+  } else if (!page.url().includes(`/${S.slug}/`)) {
+    // Plane abre el último espacio visitado (puede ser el de la demo "acme")
+    await open(page, `/${S.slug}/`);
   }
   await page.waitForURL(new RegExp(`/${S.slug}/`));
   await expect(page.getByRole('heading', { name: 'Demo', level: 4 })).toBeVisible();

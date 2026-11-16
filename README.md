@@ -6,16 +6,21 @@ este repositorio de GitHub.
 
 Está basado en el `docker-compose.yml` oficial de la release (copia sin tocar en [`upstream/`](upstream/)),
 adaptado a EasyPanel y con cuatro correcciones que encontraron las pruebas automáticas (ver
-[Correcciones](#correcciones-respecto-al-compose-oficial)). La batería de Playwright de [`e2e/`](e2e/) pasa
-**15/15** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
+[Correcciones](#correcciones-respecto-al-compose-oficial)). Añade un **módulo de tiempo** al estilo de ClickUp
+(reloj por tarea, hoja de horas, carga de trabajo frente a capacidad e informes) en `https://tu-dominio/time/`,
+con la misma sesión de Plane (ver [sección 6](#6-módulo-de-tiempo)). La batería de Playwright de
+[`e2e/`](e2e/) pasa **21/21** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
 
 ```
 docker-compose.yml     el que despliega EasyPanel
 .env.example           variables (EasyPanel lo copia a su editor)
 patches/               corrección de adjuntos de texto
-upstream/              compose y variables oficiales de la v1.4.3, para comparar al actualizar
+time/                  módulo de tiempo (servicio Node, se construye en el despliegue)
+proxy/Caddyfile        el Caddyfile oficial más la ruta /time/
+upstream/              compose, variables y Caddyfile oficiales de la v1.4.3, para comparar al actualizar
 local/                 pruebas en tu PC: Traefik (hace de EasyPanel) y Mailpit (correo)
 e2e/                   batería Playwright
+scripts/               proyecto de ejemplo por la API y extracción de todos los endpoints
 ```
 
 ---
@@ -221,8 +226,8 @@ Solo se publica el servicio `proxy`; la base de datos, Redis, RabbitMQ y MinIO q
 
 ### 4.4. Desplegar
 
-Pulsa **Deploy**. La primera vez descarga unos 2 GB de imágenes, y el servicio `migrator` tarda 3-4
-minutos en preparar la base de datos. Al terminar, `migrator` queda **parado (exit 0)**, que es lo normal;
+Pulsa **Deploy**. La primera vez descarga unos 2 GB de imágenes y construye la del módulo de tiempo
+(`time`, menos de un minuto), y el servicio `migrator` tarda 3-4 minutos en preparar la base de datos. Al terminar, `migrator` queda **parado (exit 0)**, que es lo normal;
 el resto deben estar en marcha.
 
 Comprueba desde tu ordenador que responde (debe dar `200`):
@@ -258,7 +263,44 @@ D=plane.tudominio.com; J=$(mktemp); T=$(curl -s -c $J https://$D/auth/get-csrf-t
 
 ---
 
-## 6. Copias de seguridad
+## 6. Módulo de tiempo
+
+Plane Community no registra horas (los *worklogs* son de sus planes de pago). Este repositorio añade un
+servicio `time` que lo hace al estilo de ClickUp. Se abre en `https://plane.tudominio.com/time/` con la
+sesión de Plane: si no hay sesión, lleva al login de Plane y vuelve.
+
+| Pantalla | Qué hace |
+| --- | --- |
+| **Carga de trabajo** | Personas × días de la semana: horas planificadas frente a su capacidad. Las horas estimadas de cada tarea se reparten entre sus responsables y sus días laborables, desde el inicio hasta la entrega. En rojo, quien va sobre capacidad y cuánto. Cada día abre el detalle de sus tareas |
+| **Mis horas** | Registro manual rápido (`1:30`, `1h 30m`, `1,5` o `90m`) y la hoja semanal tarea × día, editable |
+| **Tareas** | Estimación en horas de cada tarea, tiempo registrado, avance frente a lo estimado y el botón del reloj |
+| **Informes** | Horas por persona, proyecto, tarea, ciclo, módulo o día, en cualquier periodo, y exportación a CSV (Excel en español) |
+| **Capacidad** | Horas al día y días laborables de cada persona (por defecto, 8 h de lunes a viernes) |
+
+El **reloj** está siempre en la barra superior: se empieza en cualquier tarea, sigue corriendo aunque cierres
+la pestaña o cambies de dispositivo (vive en el servidor) y al pararlo registra el tiempo. Empezar otra tarea
+para la anterior.
+
+**Desde una tarea de Plane**, este marcador del navegador abre el módulo y propone empezar el reloj en esa
+tarea (crea un marcador nuevo y pega esto como URL):
+
+```text
+javascript:(()=>{const m=location.pathname.match(/^\/([^/]+)\/browse\/([A-Za-z0-9]+-\d+)/);if(!m)return alert('Abre antes una tarea de Plane (…/browse/CLAVE-123/)');open('/time/#/'+m[1]+'/tareas?start='+m[2])})()
+```
+
+**Permisos y datos personales.** Las horas registradas dicen cuánto trabaja cada persona, así que:
+
+- cada persona ve solo sus horas; los **administradores del espacio** ven las de todo el equipo;
+- solo se ven tareas de proyectos de los que se es miembro, y los invitados no registran horas;
+- cada entrada solo la edita o borra quien la registró;
+- las escrituras solo se aceptan desde el propio dominio (protección CSRF).
+
+Los datos van en la misma base de datos de Plane, en un esquema aparte (`time_tracking`) que el servicio crea
+al arrancar. No toca ninguna tabla de Plane, y las copias de la sección 7 ya lo incluyen.
+
+---
+
+## 7. Copias de seguridad
 
 Ejecuta los comandos como `root` en el servidor (`sudo -i`). Para que sea diario, añádelos con
 `crontab -e`.
@@ -269,7 +311,8 @@ Base de datos, comprimida, con la fecha en el nombre:
 mkdir -p /var/backups/plane && docker exec $(docker ps -qf name=plane-db) pg_dump -h /var/run/postgresql -U plane plane | gzip > /var/backups/plane/db-$(date +%F).sql.gz
 ```
 
-Comprueba que la copia tiene datos (debe salir un número mayor de 100; si sale 0, la copia está vacía):
+La copia incluye las horas del módulo de tiempo (esquema `time_tracking`). Comprueba que tiene datos
+(debe salir un número mayor de 100; si sale 0, la copia está vacía):
 
 ```bash
 gzip -dc /var/backups/plane/db-$(date +%F).sql.gz | grep -c 'CREATE TABLE'
@@ -286,7 +329,7 @@ de datos no sirve. Lleva las copias fuera del servidor (otro proveedor, S3, etc.
 
 ---
 
-## 7. Actualizar
+## 8. Actualizar
 
 - **Ubuntu**: las actualizaciones de seguridad se aplican solas. De vez en cuando:
   `sudo apt update && sudo apt full-upgrade -y`, y reinicia si hace falta.
@@ -301,7 +344,15 @@ de datos no sirve. Lleva las copias fuera del servidor (otro proveedor, S3, etc.
      [makeplane/plane#10167](https://github.com/makeplane/plane/pull/10167), quita la línea de
      `patches/attachment.py` del servicio `api`. Si no, compara `patches/attachment.py.orig` con el fichero
      de la imagen nueva antes de mantenerlo.
-  4. Pasa las pruebas en local (sección 9), haz `git push` y pulsa **Deploy** en EasyPanel.
+  4. Compara el Caddyfile del proxy nuevo con el anterior y, si cambió, lleva sus cambios a
+     `proxy/Caddyfile` conservando las líneas de `/time` (la ruta del módulo de tiempo es el único cambio
+     sobre el oficial):
+
+     ```bash
+     docker run --rm makeplane/plane-proxy:vX.Y.Z cat /etc/caddy/Caddyfile > upstream/Caddyfile && git diff upstream/Caddyfile
+     ```
+
+  5. Pasa las pruebas en local (sección 10), haz `git push` y pulsa **Deploy** en EasyPanel.
 
 Nunca bajes de versión con los mismos volúmenes: las migraciones de la base de datos no se deshacen.
 
@@ -331,7 +382,7 @@ Nunca bajes de versión con los mismos volúmenes: las migraciones de la base de
 
 ---
 
-## 8. Problemas frecuentes
+## 9. Problemas frecuentes
 
 | Síntoma | Causa probable |
 | --- | --- |
@@ -342,6 +393,7 @@ Nunca bajes de versión con los mismos volúmenes: las migraciones de la base de
 | Las páginas no guardan o no colaboran en tiempo real | El dominio debe apuntar a `proxy` (que enruta `/live/`), no a `web` |
 | No llegan correos | SMTP sin configurar o mal configurado en `god-mode` → *Email* |
 | Webhooks a una IP privada rechazados | Es la protección contra SSRF; añade el host a `WEBHOOK_ALLOWED_HOSTS` |
+| `/time/` da `502` | El servicio `time` no arrancó: mira sus logs (espera a la base de datos hasta 1 minuto) |
 
 Logs de un servicio: en EasyPanel, pestaña **Logs** del servicio, o por SSH:
 
@@ -351,7 +403,7 @@ docker logs --tail 100 $(docker ps -qf name=-api-1)
 
 ---
 
-## 9. Probar en tu PC antes de desplegar (opcional)
+## 10. Probar en tu PC antes de desplegar (opcional)
 
 Requiere Docker Desktop y Node.js. Usa el mismo `docker-compose.yml` que EasyPanel, con Traefik haciendo de
 EasyPanel (HTTPS en `https://plane.localhost` con certificado autofirmado) y Mailpit recogiendo los correos
@@ -375,3 +427,40 @@ diseños, ciclos, módulos, vistas, páginas en tiempo real, intake, archivado, 
 analítica, invitaciones con notificaciones, API REST y webhooks. Solo se ejecuta contra `localhost`, porque
 cambia el SMTP a Mailpit y crea datos de prueba, así que no puede apuntarse a producción por error. Entre
 dos ejecuciones seguidas espera un minuto, por el límite de intentos de acceso.
+
+### Proyecto de ejemplo y extracción por la API
+
+Para ver Plane y el módulo de tiempo con datos, hay un espacio de ejemplo `acme`, con datos **ficticios**:
+
+- el proyecto *App de Reservas*: 4 sprints (ciclos), 4 fases (módulos) y 29 tareas con responsables, estados,
+  prioridades, etiquetas, fechas, subtareas, relaciones, comentarios, enlaces, adjuntos e intake;
+- hitos (tareas con la etiqueta *Hito*), estimaciones, páginas y vistas;
+- un segundo proyecto de marketing;
+- 4 personas, con la contraseña `MEMBER_PASSWORD` de `e2e/.env.test`.
+
+1. Crea un token de la API en Plane (avatar → *Settings* → *Personal access tokens*) y ponlo en
+   `scripts/.env` (copia de [`scripts/.env.example`](scripts/.env.example)). Después crea el espacio y el
+   equipo, y siembra el resto por la API:
+
+   ```bash
+   cd e2e && npx playwright test -c seed.config.mjs
+   ```
+
+2. Carga las estimaciones y el historial de horas del módulo de tiempo:
+
+   ```bash
+   node scripts/seed-time.mjs | docker exec -i plane-app-plane-db-1 psql -h /var/run/postgresql -U plane plane
+   ```
+
+3. Lee todo el espacio por la API pública y genera `scripts/export/<espacio>/informe.md`, con cada endpoint,
+   su estado y sus datos. Solo hace peticiones `GET`, así que también sirve contra producción con su propio
+   token:
+
+   ```bash
+   node scripts/api-export.mjs
+   ```
+
+La API pública de Plane v1.4.3 no cubre las estimaciones (sus rutas no están registradas y dan `404`). Tampoco
+cubre páginas, vistas, webhooks, tokens ni la creación de espacios: esos los crea la siembra desde la propia
+app. La API admite 60 peticiones por minuto por token (`API_KEY_RATE_LIMIT`); en local se sube a 600 para la
+siembra.
