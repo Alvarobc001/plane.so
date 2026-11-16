@@ -201,7 +201,7 @@ entrarás por HTTPS y podrás **cerrar el puerto 3000** en el cortafuegos del pr
 
 ## 3. El repositorio en GitHub
 
-El proyecto está en **https://github.com/Alvarobc001/plane**, con dos ramas:
+El proyecto está en **https://github.com/Alvarobc001/plane.so**, con dos ramas:
 
 | Rama | Para qué |
 | --- | --- |
@@ -229,8 +229,8 @@ git push -u origin main dev
 1. **Create project** → por ejemplo `plane`.
 2. Dentro del proyecto: **+ Service** → **Compose**, con nombre `plane`.
 3. Pestaña **Source** → **Git**:
-   - **Repository URL**: `https://github.com/Alvarobc001/plane.git` (si el repositorio es privado, la SSH:
-     `git@github.com:Alvarobc001/plane.git`).
+   - **Repository URL**: `https://github.com/Alvarobc001/plane.so.git` (si el repositorio es privado, la SSH:
+     `git@github.com:Alvarobc001/plane.so.git`).
    - **Branch**: `main`
    - **Build Path**: `/`
    - **Docker Compose File**: `docker-compose.yml`
