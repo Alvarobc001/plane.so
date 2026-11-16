@@ -128,6 +128,12 @@ test('privacidad: un miembro no ve ni toca las horas de otras personas', async (
   expect(other).toBeTruthy();
   expect((await call(member, 'PATCH', `entries/${other.id}`, { minutes: 1 })).status).toBe(404);
   expect((await call(member, 'DELETE', `entries/${other.id}`, {})).status).toBe(404);
+  // Ni verla desde los campos de la tarea dentro de Plane: ni la entrada ni el total del equipo
+  const task = await call(member, 'GET', `tasks/by-ref/${other.ref}`);
+  expect(task.status).toBe(200);
+  expect(task.data.team).toBeNull();
+  expect(task.data.entries.map((e) => e.person)).not.toContain(other.person);
+  expect((await call(admin, 'GET', `tasks/by-ref/${other.ref}`)).data.entries.map((e) => e.id)).toContain(other.id);
   // Ni cambiar la capacidad de nadie
   expect((await call(member, 'PUT', `capacity/${other.user_id}`, { minutes_per_day: 60, workdays: [1] })).status).toBe(403);
 });

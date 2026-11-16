@@ -162,6 +162,7 @@ export const routes = {
     if (!m) throw bad('Código de tarea no válido');
     const t = await one(
       `select i.id, p.identifier || '-' || i.sequence_id as ref, i.name, est.minutes as estimate, pm.role,
+              (p.archived_at is null and ${LIVE}) as live,
               coalesce((select sum(minutes) from time_tracking.entries e where e.issue_id = i.id and e.user_id = $1), 0)::int as mine,
               case when $5 then coalesce((select sum(minutes) from time_tracking.entries e where e.issue_id = i.id), 0)::int end as team
          from issues i
@@ -180,8 +181,8 @@ export const routes = {
         order by e.day desc, e.created_at desc limit 50`,
       ctx.admin ? [t.id] : [t.id, ctx.user.id],
     );
-    const { role, ...task } = t;
-    return { ...task, can_log: role >= 15, entries };
+    const { role, live, ...task } = t;
+    return { ...task, can_log: live && role >= 15, entries }; // lo mismo que exige writableIssue
   },
 
   'PUT tasks/:id/estimate': async (ctx) => {
