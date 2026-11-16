@@ -1,19 +1,27 @@
-// Quién hace la petición: se pregunta a Plane con la misma cookie de sesión del navegador.
-// El módulo vive en el mismo dominio (/time/), así que no hay segundo login ni claves de API.
+// Quién hace la petición. Se pregunta a Plane, que es quien sabe:
+//  - desde el navegador, con la misma cookie de sesión (el módulo vive en el mismo dominio, /time/);
+//  - desde Power BI, Excel o un script, con un token de la API de Plane en la cabecera X-API-Key,
+//    solo para lecturas (GET): con un token no se puede escribir nada.
 import { createHash } from 'node:crypto';
 import { one } from './db.mjs';
 
 const PLANE = process.env.PLANE_API_URL || 'http://api:8000';
-const cache = new Map(); // hash de la cookie -> { user, until }
+const cache = new Map(); // hash de la credencial -> { user, until }
 const TTL = 30_000;
 
-export async function currentUser(cookie) {
-  if (!cookie || !/session-id=/.test(cookie)) return null;
-  const key = createHash('sha256').update(cookie).digest('hex');
+export async function currentUser(headers, method) {
+  const token = headers['x-api-key'];
+  if (token && method === 'GET') return whoIs('/api/v1/users/me/', { 'x-api-key': token });
+  if (!headers.cookie || !/session-id=/.test(headers.cookie)) return null;
+  return whoIs('/api/users/me/', { cookie: headers.cookie });
+}
+
+async function whoIs(path, credential) {
+  const key = createHash('sha256').update(path + Object.values(credential)[0]).digest('hex');
   const hit = cache.get(key);
   if (hit && hit.until > Date.now()) return hit.user;
 
-  const r = await fetch(`${PLANE}/api/users/me/`, { headers: { cookie, accept: 'application/json' } });
+  const r = await fetch(`${PLANE}${path}`, { headers: { ...credential, accept: 'application/json' } });
   if (r.status === 401 || r.status === 403) return null;
   if (!r.ok) throw new Error(`Plane respondió ${r.status} al pedir el usuario`);
   const u = await r.json();

@@ -185,6 +185,17 @@ export const routes = {
     return { ...task, can_log: live && role >= 15, entries }; // lo mismo que exige writableIssue
   },
 
+  // Estimaciones en horas de las tareas visibles: para informes de estimado frente a real
+  'GET estimates': async (ctx) => q(
+    `select est.issue_id, p.identifier || '-' || i.sequence_id as ref, i.name, p.name as project, est.minutes
+       from time_tracking.estimates est
+       join issues i on i.id = est.issue_id and i.deleted_at is null
+       join projects p on p.id = i.project_id
+      where i.project_id in (${VISIBLE})
+      order by p.identifier, i.sequence_id`,
+    [ctx.user.id, ctx.ws.workspace_id],
+  ),
+
   'PUT tasks/:id/estimate': async (ctx) => {
     const issue = await writableIssue(ctx, ctx.params.id);
     if (ctx.body.minutes === null) {
@@ -204,7 +215,8 @@ export const routes = {
   'GET entries': async (ctx) => {
     const from = date(ctx.query.from, 'Desde');
     const to = date(ctx.query.to ?? from, 'Hasta');
-    if (range(from, to).length > 93) throw bad('El periodo no puede pasar de tres meses');
+    if (from > to) throw bad('La fecha de inicio va después de la de fin');
+    if (range(from, to).length > 370) throw bad('El periodo no puede pasar de un año');
     const who = whoFilter(ctx, ctx.query.user);
     return q(
       `select e.id, e.day, e.minutes, e.note, e.source, e.started_at, e.user_id, ${NAME} as person,
