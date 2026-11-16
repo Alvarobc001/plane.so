@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>Datos de Plane en Power BI</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  :root { --ink:#1d2433; --soft:#5b6476; --line:#e3e7ee; --blue:#3f76ff; --blue-soft:#eef3ff; --bg:#f7f8fa; }
+  * { box-sizing: border-box; }
+  body { font: 10pt/1.5 Inter, 'Segoe UI', Arial, sans-serif; color: var(--ink); margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h1 { font-size: 24pt; line-height: 1.15; margin: 0 0 6pt; letter-spacing: -0.01em; }
+  h2 { font-size: 15pt; margin: 0 0 8pt; padding-top: 2pt; }
+  h3 { font-size: 12.5pt; margin: 0; }
+  p { margin: 0 0 7pt; }
+  code { font: 8.6pt/1.4 Consolas, 'Cascadia Mono', monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; overflow-wrap: anywhere; }
+  .lead { font-size: 11.5pt; color: var(--soft); max-width: 150mm; }
+  .cover { border-bottom: 2px solid var(--ink); padding-bottom: 10pt; margin-bottom: 14pt; }
+  .kicker { font-size: 8.5pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); margin-bottom: 6pt; }
+  .page { break-before: page; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 9pt 11pt; background: #fff; break-inside: avoid; }
+  .card h4 { margin: 0 0 4pt; font-size: 10.5pt; }
+  .fill { border-bottom: 1px solid #b9c0cc; height: 16pt; margin: 2pt 0 6pt; }
+  ol.steps { padding-left: 16pt; margin: 0 0 8pt; }
+  ol.steps li { margin-bottom: 4pt; padding-left: 2pt; }
+  b.ui { font-weight: 600; }
+  .connect { display: grid; grid-template-columns: 1fr 78mm; gap: 12pt; align-items: start; }
+  .connect .dialog { margin-top: 0; }
+  .dialog { border: 1px solid #c9cfda; border-radius: 8px; overflow: hidden; break-inside: avoid; margin: 8pt 0 10pt; }
+  .dialog .bar { background: var(--bg); border-bottom: 1px solid var(--line); padding: 6pt 10pt; font-weight: 600; font-size: 9.5pt; }
+  .dialog .body { padding: 9pt 12pt 11pt; }
+  .radio { display: inline-flex; align-items: center; gap: 5pt; margin-right: 14pt; font-size: 9pt; }
+  .radio i { width: 9pt; height: 9pt; border-radius: 50%; border: 1px solid #8c95a6; display: inline-block; }
+  .radio i.on { border: 3px solid var(--blue); }
+  .field-label { font-size: 8.5pt; color: var(--soft); margin: 8pt 0 3pt; }
+  .field { border: 1px solid #c9cfda; border-radius: 4px; padding: 4pt 7pt; font: 8.8pt Consolas, monospace; background: #fff; }
+  .row2 { display: grid; grid-template-columns: 38% 1fr; gap: 6pt; }
+  .callout { background: var(--blue-soft); border-left: 3px solid var(--blue); border-radius: 0 6px 6px 0; padding: 7pt 10pt; margin: 8pt 0; break-inside: avoid; }
+  .warn { background: #fff7e8; border-left-color: #d9911a; }
+  svg { width: 100%; height: auto; display: block; margin: 4pt 0 8pt; }
+  table { border-collapse: collapse; width: 100%; }
+  table.rels td, table.rels th { border-bottom: 1px solid var(--line); padding: 3.5pt 6pt; text-align: left; font-size: 9pt; }
+  table.rels th { font-size: 8.5pt; color: var(--soft); font-weight: 600; }
+  .keep { break-inside: avoid; }
+  section.tabla { border-top: 1px solid var(--line); padding-top: 10pt; margin-top: 12pt; }
+  .tabla-head { display: flex; align-items: center; gap: 8pt; margin-bottom: 5pt; }
+  .chip { font-size: 7.5pt; font-weight: 600; padding: 2pt 7pt; border-radius: 99px; white-space: nowrap; }
+  .chip.datos { background: var(--blue); color: #fff; }
+  .chip.busqueda { background: #eef1f6; color: var(--ink); border: 1px solid #d6dbe4; }
+  .url { display: flex; gap: 6pt; align-items: baseline; margin-bottom: 4pt; }
+  .url span { font-size: 8.5pt; color: var(--soft); white-space: nowrap; }
+  .url b { color: var(--blue); }
+  .fila { color: var(--soft); }
+  .label { font-size: 8pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--soft); margin: 8pt 0 4pt; }
+  table.sample { font-size: 8pt; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  table.sample th { background: #f0f2f6; text-align: left; font-weight: 600; padding: 4pt 6pt; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.sample td { padding: 3.5pt 6pt; border-bottom: 1px solid #f0f2f6; vertical-align: top; }
+  table.sample td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  dl { display: grid; grid-template-columns: 44mm 1fr; gap: 2pt 10pt; margin: 0; font-size: 9pt; }
+  dt { font-weight: 600; }
+  dd { margin: 0; color: #3a4252; }
+  table.params td { padding: 3pt 6pt; border-bottom: 1px solid var(--line); font-size: 9pt; vertical-align: top; }
+  .nota { font-size: 9pt; color: var(--soft); margin-top: 5pt; }
+  pre { font: 9pt/1.45 Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7pt 10pt; margin: 3pt 0 9pt; white-space: pre-wrap; break-inside: avoid; }
+  table.trouble td { border-bottom: 1px solid var(--line); padding: 4pt 6pt; font-size: 9pt; vertical-align: top; }
+  table.trouble td:first-child { font-weight: 600; white-space: nowrap; }
+</style></head>
+<body>
+
+<header class="cover">
+  <div class="kicker">Plane · Guía de datos</div>
+  <h1>Datos de Plane en Power BI</h1>
+  <p class="lead">Cada tabla tiene su propia dirección web. La conectas una vez en Power BI (o en Excel) y, a partir de ahí, solo pulsas <b>Actualizar</b> para tener los datos al día. No hace falta programar ni descargar ficheros.</p>
+</header>
+
+<h2>1. Lo que necesitas</h2>
+<div class="grid2">
+  <div class="card"><h4>Dirección de Plane</h4><p>La que usas para entrar en Plane, por ejemplo <code>https://plane.tudominio.com</code></p></div>
+  <div class="card"><h4>Nombre del espacio</h4><p>Lo que va después del dominio en la barra del navegador: en <code>…/acme/projects</code> es <code>acme</code></p></div>
+</div>
+<div class="card" style="margin-top:10pt">
+  <h4>Un token (la llave de acceso)</h4>
+  <p>Es un texto que empieza por <code>plane_api_</code>. Te lo da el administrador de Plane, o lo creas tú en Plane: tu foto (abajo a la izquierda) → <b class="ui">Settings</b> → <b class="ui">Personal access tokens</b> → <b class="ui">Add access token</b>, con caducidad o <b class="ui">Never expires</b>. Solo se muestra una vez: guárdalo.</p>
+  <p style="margin:0">El token ve lo mismo que su dueño. <b>Para tener las horas de todo el equipo, el token debe ser de un administrador del espacio</b>; con el de un miembro, solo salen sus propias horas.</p>
+</div>
+<div class="callout warn"><b>Trátalo como una contraseña.</b> Quien lo tenga puede leer los datos. No lo pegues en correos ni lo compartas; si se pierde, se borra en la misma pantalla de Plane y se crea otro. Los informes con horas por persona son datos personales: compártelos solo con quien deba verlos.</div>
+
+<h2 style="margin-top:14pt">2. Conectar una tabla en Power BI</h2>
+<div class="connect">
+<ol class="steps">
+  <li>En Power BI Desktop: <b class="ui">Inicio</b> → <b class="ui">Obtener datos</b> → <b class="ui">Web</b>.</li>
+  <li>Marca <b class="ui">Avanzado</b>.</li>
+  <li>En <b class="ui">Elementos de la URL</b>, pega la dirección de la tabla (sección 4), con tu dominio y tu espacio.</li>
+  <li>En <b class="ui">Parámetros de encabezado de solicitud HTTP</b>, escribe <code>X-API-Key</code> en la casilla de la izquierda y pega tu token en la de la derecha.</li>
+  <li><b class="ui">Aceptar</b>. Si pregunta cómo acceder, elige <b class="ui">Anónimo</b> → <b class="ui">Conectar</b> (la llave ya va en el token).</li>
+  <li>Verás la tabla con sus columnas: <b class="ui">Cargar</b>. Repite con cada tabla que quieras.</li>
+</ol>
+<div class="dialog">
+  <div class="bar">Desde la web</div>
+  <div class="body">
+    <span class="radio"><i></i>Básico</span><span class="radio"><i class="on"></i>Avanzado</span>
+    <div class="field-label">Elementos de la URL</div>
+    <div class="field">https://plane.tudominio.com/time/api/w/<br>tu-espacio/export/tareas</div>
+    <div class="field-label">Parámetros de encabezado de solicitud HTTP (opcional)</div>
+    <div class="row2"><div class="field">X-API-Key</div><div class="field">plane_api_••••••••</div></div>
+  </div>
+</div>
+</div>
+<p><b>Para tener datos nuevos</b>, pulsa <b class="ui">Actualizar</b>: las tablas traen lo que hay en Plane en ese momento. <b>En Excel</b> es igual: <b class="ui">Datos</b> → <b class="ui">Obtener datos</b> → <b class="ui">De otras fuentes</b> → <b class="ui">Desde la web</b> → <b class="ui">Avanzado</b>; y para refrescar, <b class="ui">Datos</b> → <b class="ui">Actualizar todo</b>.</p>
+
+<div class="page"></div>
+<h2>3. Cómo se relacionan las tablas</h2>
+<p>Las ocho tablas forman un modelo en estrella: las <b>tablas de datos</b> (azules) guardan lo que se mide y las <b>tablas de búsqueda</b> (grises) sirven para filtrar y agrupar. Se unen por las columnas que empiezan por <b>ID</b>.</p>
+<svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Modelo de datos: tablas y relaciones">
+  <style>
+    .t-title{font:600 14px Inter,'Segoe UI',sans-serif}
+    .t-row{font:12px Inter,'Segoe UI',sans-serif;fill:#3a4252}
+    .t-key{font-weight:600;fill:#1d2433}
+    .t-pk{fill:#3f76ff}.t-fk{fill:#3f76ff}
+    .t-card{font:600 11px Inter,'Segoe UI',sans-serif;fill:#3f76ff;text-anchor:middle}
+    .t-leg{font:12px Inter,'Segoe UI',sans-serif;fill:#3a4252}
+  </style>
+  <path d="M200 84 H226 V284 H250" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="213" cy="84" r="8" fill="#fff" stroke="#3f76ff"/><text x="213" y="88" class="t-card">1</text></g><g><circle cx="238" cy="284" r="8" fill="#fff" stroke="#3f76ff"/><text x="238" y="288" class="t-card">∗</text></g><path d="M110 162 V300" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="110" cy="176" r="8" fill="#fff" stroke="#3f76ff"/><text x="110" y="180" class="t-card">1</text></g><g><circle cx="110" cy="288" r="8" fill="#fff" stroke="#3f76ff"/><text x="110" y="292" class="t-card">∗</text></g><path d="M340 162 V220" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="340" cy="176" r="8" fill="#fff" stroke="#3f76ff"/><text x="340" y="180" class="t-card">1</text></g><g><circle cx="340" cy="208" r="8" fill="#fff" stroke="#3f76ff"/><text x="340" y="212" class="t-card">∗</text></g><path d="M430 264 H455 V284 H480" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="443" cy="252" r="8" fill="#fff" stroke="#3f76ff"/><text x="443" y="256" class="t-card">1</text></g><g><circle cx="468" cy="284" r="8" fill="#fff" stroke="#3f76ff"/><text x="468" y="288" class="t-card">∗</text></g><path d="M455 264 V439 H480" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="468" cy="439" r="8" fill="#fff" stroke="#3f76ff"/><text x="468" y="443" class="t-card">∗</text></g><path d="M710 264 H685 V304 H660" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="697" cy="252" r="8" fill="#fff" stroke="#3f76ff"/><text x="697" y="256" class="t-card">1</text></g><g><circle cx="672" cy="304" r="8" fill="#fff" stroke="#3f76ff"/><text x="672" y="308" class="t-card">∗</text></g><path d="M685 264 V459 H660" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="672" cy="459" r="8" fill="#fff" stroke="#3f76ff"/><text x="672" y="463" class="t-card">∗</text></g><path d="M800 342 V385" fill="none" stroke="#3f76ff" stroke-width="1.6"/><g><circle cx="800" cy="356" r="8" fill="#fff" stroke="#3f76ff"/><text x="800" y="360" class="t-card">1</text></g><g><circle cx="800" cy="373" r="8" fill="#fff" stroke="#3f76ff"/><text x="800" y="377" class="t-card">∗</text></g>
+  <g>
+    <rect x="20" y="40" width="180" height="122" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M20 48 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#eef1f6"/>
+    <text x="32" y="61" class="t-title" fill="#1d2433">Proyectos</text>
+    <text x="32" y="88" class="t-row t-key"><tspan class="t-pk">● </tspan>ID proyecto</text><text x="32" y="108" class="t-row">Código proyecto</text><text x="32" y="128" class="t-row">Proyecto</text><text x="32" y="148" class="t-row">Responsable del proyecto</text>
+  </g><g>
+    <rect x="250" y="40" width="180" height="122" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M250 48 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#eef1f6"/>
+    <text x="262" y="61" class="t-title" fill="#1d2433">Ciclos</text>
+    <text x="262" y="88" class="t-row t-key"><tspan class="t-pk">● </tspan>ID ciclo</text><text x="262" y="108" class="t-row">Ciclo</text><text x="262" y="128" class="t-row">Inicio</text><text x="262" y="148" class="t-row">Fin</text>
+  </g><g>
+    <rect x="20" y="300" width="180" height="122" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M20 308 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#eef1f6"/>
+    <text x="32" y="321" class="t-title" fill="#1d2433">Módulos</text>
+    <text x="32" y="348" class="t-row t-key"><tspan class="t-pk">● </tspan>ID módulo</text><text x="32" y="368" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID proyecto</text><text x="32" y="388" class="t-row">Módulo</text><text x="32" y="408" class="t-row">Estado</text>
+  </g><g>
+    <rect x="250" y="220" width="180" height="222" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M250 228 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#3f76ff"/>
+    <text x="262" y="241" class="t-title" fill="#ffffff">Tareas</text>
+    <text x="262" y="268" class="t-row t-key"><tspan class="t-pk">● </tspan>ID tarea</text><text x="262" y="288" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID proyecto</text><text x="262" y="308" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID ciclo</text><text x="262" y="328" class="t-row">Código</text><text x="262" y="348" class="t-row">Tarea</text><text x="262" y="368" class="t-row">Estado</text><text x="262" y="388" class="t-row">Responsables</text><text x="262" y="408" class="t-row">Minutos estimados</text><text x="262" y="428" class="t-row">Minutos registrados</text>
+  </g><g>
+    <rect x="480" y="220" width="180" height="142" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M480 228 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#3f76ff"/>
+    <text x="492" y="241" class="t-title" fill="#ffffff">Horas</text>
+    <text x="492" y="268" class="t-row t-key"><tspan class="t-pk">● </tspan>ID registro</text><text x="492" y="288" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID tarea</text><text x="492" y="308" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID persona</text><text x="492" y="328" class="t-row">Día</text><text x="492" y="348" class="t-row">Minutos</text>
+  </g><g>
+    <rect x="710" y="220" width="180" height="122" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M710 228 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#eef1f6"/>
+    <text x="722" y="241" class="t-title" fill="#1d2433">Personas</text>
+    <text x="722" y="268" class="t-row t-key"><tspan class="t-pk">● </tspan>ID persona</text><text x="722" y="288" class="t-row">Persona</text><text x="722" y="308" class="t-row">Rol</text><text x="722" y="328" class="t-row">Minutos al día</text>
+  </g><g>
+    <rect x="480" y="395" width="180" height="102" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M480 403 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#3f76ff"/>
+    <text x="492" y="416" class="t-title" fill="#ffffff">Responsables</text>
+    <text x="492" y="443" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID tarea</text><text x="492" y="463" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID persona</text><text x="492" y="483" class="t-row">Persona</text>
+  </g><g>
+    <rect x="710" y="385" width="180" height="142" rx="8" fill="#fff" stroke="#d6dbe4"/>
+    <path d="M710 393 a8 8 0 0 1 8 -8 h164 a8 8 0 0 1 8 8 v22 h-180 z" fill="#3f76ff"/>
+    <text x="722" y="406" class="t-title" fill="#ffffff">Carga</text>
+    <text x="722" y="433" class="t-row t-key"><tspan class="t-fk">○ </tspan>ID persona</text><text x="722" y="453" class="t-row">Día</text><text x="722" y="473" class="t-row">Capacidad (min)</text><text x="722" y="493" class="t-row">Planificado (min)</text><text x="722" y="513" class="t-row">Registrado (min)</text>
+  </g>
+  <g transform="translate(480 40)">
+    <rect width="410" height="132" rx="8" fill="#f7f8fa" stroke="#e3e7ee"/>
+    <text x="16" y="26" class="t-title" fill="#1d2433">Cómo leerlo</text>
+    <rect x="16" y="40" width="14" height="14" rx="3" fill="#3f76ff"/><text x="38" y="52" class="t-leg">Tabla de datos: lo que se suma y se cuenta</text>
+    <rect x="16" y="62" width="14" height="14" rx="3" fill="#eef1f6" stroke="#d6dbe4"/><text x="38" y="74" class="t-leg">Tabla de búsqueda: por lo que se filtra y se agrupa</text>
+    <text x="16" y="98" class="t-leg"><tspan class="t-pk">●</tspan> clave única de la tabla     <tspan class="t-fk">○</tspan> columna que apunta a otra tabla</text>
+    <g><circle cx="24" cy="116" r="8" fill="#fff" stroke="#3f76ff"/><text x="24" y="120" class="t-card">1</text></g><text x="38" y="120" class="t-leg">una fila aquí</text>
+    <g><circle cx="140" cy="116" r="8" fill="#fff" stroke="#3f76ff"/><text x="140" y="120" class="t-card">∗</text></g><text x="154" y="120" class="t-leg">muchas filas allí (relación uno a varios)</text>
+  </g>
+</svg>
+<p>Después de cargar las tablas, abre la vista <b class="ui">Modelo</b> (el tercer icono de la izquierda). Power BI suele crear solo estas relaciones porque las columnas se llaman igual; comprueba que están todas y que no sobra ninguna. Si falta alguna, arrastra la columna de una tabla sobre la de la otra:</p>
+<table class="rels"><thead><tr><th>Desde (una fila)</th><th>Hacia (muchas filas)</th></tr></thead><tbody>
+<tr><td>Proyectos [ID proyecto]</td><td>Tareas [ID proyecto]</td></tr><tr><td>Proyectos [ID proyecto]</td><td>Módulos [ID proyecto]</td></tr><tr><td>Ciclos [ID ciclo]</td><td>Tareas [ID ciclo]</td></tr><tr><td>Tareas [ID tarea]</td><td>Horas [ID tarea]</td></tr><tr><td>Tareas [ID tarea]</td><td>Responsables [ID tarea]</td></tr><tr><td>Personas [ID persona]</td><td>Horas [ID persona]</td></tr><tr><td>Personas [ID persona]</td><td>Responsables [ID persona]</td></tr><tr><td>Personas [ID persona]</td><td>Carga [ID persona]</td></tr>
+</tbody></table>
+<div class="callout">Si Power BI crea relaciones por <b>Código</b>, <b>Proyecto</b> o <b>Persona</b> (texto), bórralas: deja solo las de la tabla. Las uniones por ID son las seguras, porque dos proyectos o dos personas pueden llamarse igual.</div>
+
+<div class="keep">
+<h3 style="margin-top:12pt">Medidas para empezar</h3>
+<p>En Power BI: <b class="ui">Modelado</b> → <b class="ui">Nueva medida</b>, y pega cada línea. Los tiempos vienen en minutos; estas medidas los pasan a horas.</p>
+<pre>Horas registradas = SUM ( Horas[Minutos] ) / 60
+Horas estimadas = SUM ( Tareas[Minutos estimados] ) / 60
+Desviación % = DIVIDE ( SUM ( Tareas[Minutos registrados] ) - SUM ( Tareas[Minutos estimados] ), SUM ( Tareas[Minutos estimados] ) )
+Ocupación % = DIVIDE ( SUM ( Carga[Planificado (min)] ), SUM ( Carga[Capacidad (min)] ) )
+Tareas abiertas = CALCULATE ( COUNTROWS ( Tareas ), NOT Tareas[Tipo de estado] IN { "Hecha", "Cancelada" } )</pre>
+<p>Ideas de gráficos: horas por persona y semana (Horas[Día] en el eje, Personas[Persona] como leyenda); estimado frente a registrado por proyecto; ocupación por persona con Carga (más de 100 % es sobrecarga); tareas abiertas por tipo de estado y prioridad.</p>
+</div>
+
+<h2 style="margin-top:16pt">4. Las tablas, una por una</h2>
+<p>Cambia <code>plane.tudominio.com</code> por tu dirección y <code>tu-espacio</code> por el nombre de tu espacio. Los ejemplos son de un espacio de prueba con datos inventados.</p>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip busqueda">Tabla de búsqueda</span>
+    <h3>1. Proyectos</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/proyectos</code></p>
+  <p class="fila">Cada fila es un proyecto.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>ID proyecto</th><th>Código proyecto</th><th>Proyecto</th><th>Responsable del proyecto</th><th>Creado</th></tr></thead>
+  <tbody><tr><td class="">f24ee024…</td><td class="">RES</td><td class="">App de Reservas</td><td class="">Laura Gomez</td><td class="">2026-11-16</td></tr><tr><td class="">e41e8560…</td><td class="">MKT</td><td class="">Campaña de lanzamiento</td><td class="">Laura Gomez</td><td class="">2026-11-16</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID proyecto</dt><dd>Identificador único. Une con Tareas y Módulos.</dd><dt>Código proyecto</dt><dd>Prefijo de sus tareas: RES, MKT…</dd><dt>Proyecto</dt><dd>Nombre del proyecto.</dd><dt>Responsable del proyecto</dt><dd>Persona al frente del proyecto (vacío si no tiene).</dd><dt>Creado</dt><dd>Fecha de creación.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip datos">Tabla de datos</span>
+    <h3>2. Tareas</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/tareas</code></p>
+  <p class="fila">Cada fila es una tarea (incluidas las terminadas y las archivadas).</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>Código</th><th>Tarea</th><th>Estado</th><th>Prioridad</th><th>Responsables</th><th>Entrega</th><th>Minutos estimados</th><th>Minutos registrados</th></tr></thead>
+  <tbody><tr><td class="">RES-1</td><td class="">Entrevistas con 8 clientes piloto</td><td class="">Hecho</td><td class="">Alta</td><td class="">Laura Gomez</td><td class="">2026-10-23</td><td class="num">600</td><td class="num">525</td></tr><tr><td class="">RES-2</td><td class="">Mapa del flujo de reserva</td><td class="">Hecho</td><td class="">Media</td><td class="">Marco Diaz</td><td class="">2026-10-25</td><td class="num">360</td><td class="num">360</td></tr><tr><td class="">RES-3</td><td class="">Prototipo navegable en Figma</td><td class="">Hecho</td><td class="">Alta</td><td class="">Marco Diaz</td><td class="">2026-10-31</td><td class="num">960</td><td class="num">900</td></tr><tr><td class="">RES-4</td><td class="">Guía de estilos y componentes</td><td class="">Hecho</td><td class="">Media</td><td class="">Sofia Ruiz</td><td class="">2026-10-30</td><td class="num">720</td><td class="num">600</td></tr><tr><td class="">RES-5</td><td class="">Hito: diseño aprobado</td><td class="">Hecho</td><td class="">Urgente</td><td class="">Laura Gomez</td><td class="">2026-11-06</td><td class="num">60</td><td class="num">60</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID tarea</dt><dd>Identificador único. Une con Horas y Responsables.</dd><dt>Código</dt><dd>Código visible de la tarea: RES-16.</dd><dt>Tarea</dt><dd>Título de la tarea.</dd><dt>ID proyecto · Proyecto</dt><dd>A qué proyecto pertenece.</dd><dt>Estado</dt><dd>Estado tal como se llama en el proyecto (Todo, In Progress…).</dd><dt>Tipo de estado</dt><dd>Pendiente, Sin empezar, En curso, Hecha o Cancelada. Igual en todos los proyectos: úsalo para comparar.</dd><dt>Prioridad</dt><dd>Urgente, Alta, Media, Baja o Sin prioridad.</dd><dt>Responsables</dt><dd>Nombres separados por comas. Para contar por persona, usa la tabla Responsables.</dd><dt>Etiquetas</dt><dd>Etiquetas separadas por comas.</dd><dt>Inicio · Entrega</dt><dd>Fechas de inicio y de entrega previstas.</dd><dt>Completada · Creada</dt><dd>Cuándo se terminó y cuándo se creó.</dd><dt>Tarea padre</dt><dd>Código de la tarea de la que es subtarea.</dd><dt>ID ciclo · Ciclo</dt><dd>Sprint en el que está. Une con Ciclos.</dd><dt>Módulos</dt><dd>Módulos o fases en los que está, separados por comas.</dd><dt>Minutos estimados</dt><dd>Lo que se calculó que llevaría (vacío si no se estimó).</dd><dt>Minutos registrados</dt><dd>Tiempo total registrado en la tarea.</dd><dt>Archivada</dt><dd>Sí o No.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip datos">Tabla de datos</span>
+    <h3>3. Horas</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/horas</code></p>
+  <p class="fila">Cada fila es un registro de tiempo de una persona en una tarea y un día.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>Día</th><th>Persona</th><th>Proyecto</th><th>Código</th><th>Tarea</th><th>Minutos</th><th>Origen</th></tr></thead>
+  <tbody><tr><td class="">2026-11-13</td><td class="">Diego Martin</td><td class="">App de Reservas</td><td class="">RES-8</td><td class="">Documentación de la API</td><td class="num">60</td><td class="">Manual</td></tr><tr><td class="">2026-11-13</td><td class="">Laura Gomez</td><td class="">Campaña de lanzamiento</td><td class="">MKT-1</td><td class="">Plan de medios</td><td class="num">75</td><td class="">Reloj</td></tr><tr><td class="">2026-11-13</td><td class="">Diego Martin</td><td class="">App de Reservas</td><td class="">RES-9</td><td class="">API de reservas y cancelaciones</td><td class="num">210</td><td class="">Manual</td></tr><tr><td class="">2026-11-13</td><td class="">Diego Martin</td><td class="">App de Reservas</td><td class="">RES-10</td><td class="">Validar solapes de horario</td><td class="num">180</td><td class="">Reloj</td></tr><tr><td class="">2026-11-13</td><td class="">Sofia Ruiz</td><td class="">App de Reservas</td><td class="">RES-16</td><td class="">Pantalla de búsqueda de huecos</td><td class="num">195</td><td class="">Manual</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID registro</dt><dd>Identificador único del registro.</dd><dt>Día</dt><dd>Día al que corresponde el tiempo.</dd><dt>ID persona · Persona</dt><dd>Quién lo registró. Une con Personas.</dd><dt>Proyecto</dt><dd>Proyecto de la tarea.</dd><dt>ID tarea · Código · Tarea</dt><dd>En qué tarea. Une con Tareas.</dd><dt>Minutos</dt><dd>Duración. Divide entre 60 para tener horas.</dd><dt>Origen</dt><dd>Reloj (con el botón de play) o Manual.</dd><dt>Nota</dt><dd>Comentario opcional de quien lo registró.</dd></dl>
+  <p class="label">Filtrar por fechas (opcional), añadiendo al final de la dirección</p>
+  <table class="params"><tbody><tr><td><code>desde</code></td><td>Solo registros desde ese día</td><td><code>export/horas?desde=2026-01-01</code></td></tr><tr><td><code>hasta</code></td><td>Solo registros hasta ese día</td><td><code>export/horas?desde=2026-01-01&amp;hasta=2026-06-30</code></td></tr></tbody></table>
+  <p class="nota">Sin parámetros trae todo el historial.</p>
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip datos">Tabla de datos</span>
+    <h3>4. Responsables</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/responsables</code></p>
+  <p class="fila">Cada fila es una persona asignada a una tarea (una tarea con dos responsables ocupa dos filas).</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>ID tarea</th><th>Código</th><th>ID persona</th><th>Persona</th></tr></thead>
+  <tbody><tr><td class="">2ed04479…</td><td class="">RES-1</td><td class="">b1995e03…</td><td class="">Laura Gomez</td></tr><tr><td class="">600731b6…</td><td class="">RES-2</td><td class="">13f326d9…</td><td class="">Marco Diaz</td></tr><tr><td class="">6ba689d5…</td><td class="">RES-3</td><td class="">13f326d9…</td><td class="">Marco Diaz</td></tr><tr><td class="">5decf727…</td><td class="">RES-4</td><td class="">a492cda2…</td><td class="">Sofia Ruiz</td></tr><tr><td class="">511f19ed…</td><td class="">RES-5</td><td class="">b1995e03…</td><td class="">Laura Gomez</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID tarea · Código</dt><dd>La tarea. Une con Tareas.</dd><dt>ID persona · Persona</dt><dd>La persona asignada. Une con Personas.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip busqueda">Tabla de búsqueda</span>
+    <h3>5. Personas</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/personas</code></p>
+  <p class="fila">Cada fila es una persona del espacio de trabajo.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>ID persona</th><th>Persona</th><th>Rol</th><th>Minutos al día</th><th>Días laborables</th></tr></thead>
+  <tbody><tr><td class="">1549b5cf…</td><td class="">Admin Plane</td><td class="">Administrador</td><td class="num">480</td><td class="">lun mar mié jue vie</td></tr><tr><td class="">b3f09d02…</td><td class="">Diego Martin</td><td class="">Miembro</td><td class="num">480</td><td class="">lun mar mié jue vie</td></tr><tr><td class="">b1995e03…</td><td class="">Laura Gomez</td><td class="">Miembro</td><td class="num">480</td><td class="">lun mar mié jue vie</td></tr><tr><td class="">13f326d9…</td><td class="">Marco Diaz</td><td class="">Miembro</td><td class="num">480</td><td class="">lun mar mié jue vie</td></tr><tr><td class="">a492cda2…</td><td class="">Sofia Ruiz</td><td class="">Miembro</td><td class="num">480</td><td class="">lun mar mié jue vie</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID persona</dt><dd>Identificador único. Une con Horas, Responsables y Carga.</dd><dt>Persona</dt><dd>Nombre y apellidos.</dd><dt>Rol</dt><dd>Administrador, Miembro o Invitado.</dd><dt>Minutos al día</dt><dd>Capacidad: tiempo que trabaja cada día laborable (480 = 8 h).</dd><dt>Días laborables</dt><dd>Días que trabaja: lun mar mié jue vie.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip busqueda">Tabla de búsqueda</span>
+    <h3>6. Ciclos</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/ciclos</code></p>
+  <p class="fila">Cada fila es un ciclo (sprint) de un proyecto.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>ID ciclo</th><th>Proyecto</th><th>Ciclo</th><th>Inicio</th><th>Fin</th><th>Archivado</th></tr></thead>
+  <tbody><tr><td class="">5d761229…</td><td class="">App de Reservas</td><td class="">Sprint 1 · Descubrimiento</td><td class="">2026-10-19</td><td class="">2026-11-01</td><td class="">Sí</td></tr><tr><td class="">c8642aa8…</td><td class="">App de Reservas</td><td class="">Sprint 2 · Base técnica</td><td class="">2026-11-02</td><td class="">2026-11-15</td><td class="">No</td></tr><tr><td class="">d35f67f8…</td><td class="">App de Reservas</td><td class="">Sprint 3 · Flujo de reserva</td><td class="">2026-11-16</td><td class="">2026-11-29</td><td class="">No</td></tr><tr><td class="">e624e1d8…</td><td class="">App de Reservas</td><td class="">Sprint 4 · Beta</td><td class="">2026-11-30</td><td class="">2026-12-13</td><td class="">No</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID ciclo</dt><dd>Identificador único. Une con Tareas.</dd><dt>Proyecto</dt><dd>Proyecto del ciclo.</dd><dt>Ciclo</dt><dd>Nombre del ciclo.</dd><dt>Inicio · Fin</dt><dd>Fechas del ciclo.</dd><dt>Archivado</dt><dd>Sí o No.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip busqueda">Tabla de búsqueda</span>
+    <h3>7. Módulos</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/modulos</code></p>
+  <p class="fila">Cada fila es un módulo (fase o bloque de trabajo) de un proyecto.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>ID módulo</th><th>Proyecto</th><th>Módulo</th><th>Estado</th><th>Inicio</th><th>Entrega</th></tr></thead>
+  <tbody><tr><td class="">7e944556…</td><td class="">App de Reservas</td><td class="">Fase 1 · Descubrimiento y diseño</td><td class="">Completado</td><td class="">2026-10-19</td><td class="">2026-11-06</td></tr><tr><td class="">3c1d3a1b…</td><td class="">App de Reservas</td><td class="">Fase 2 · Backend y API</td><td class="">En curso</td><td class="">2026-10-31</td><td class="">2026-11-26</td></tr><tr><td class="">e2e4f6cd…</td><td class="">App de Reservas</td><td class="">Fase 3 · App web</td><td class="">En curso</td><td class="">2026-11-09</td><td class="">2026-12-06</td></tr><tr><td class="">bbef7dad…</td><td class="">App de Reservas</td><td class="">Fase 4 · Pruebas y lanzamiento</td><td class="">Planificado</td><td class="">2026-11-15</td><td class="">2026-12-21</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID módulo</dt><dd>Identificador único.</dd><dt>ID proyecto · Proyecto</dt><dd>Proyecto del módulo. Une con Proyectos.</dd><dt>Módulo</dt><dd>Nombre del módulo.</dd><dt>Estado</dt><dd>Pendiente, Planificado, En curso, En pausa, Completado o Cancelado.</dd><dt>Inicio · Entrega</dt><dd>Fechas previstas.</dd><dt>Responsable</dt><dd>Persona al frente del módulo.</dd><dt>Archivado</dt><dd>Sí o No.</dd></dl>
+  
+</section>
+<section class="tabla">
+  <div class="keep">
+  <div class="tabla-head">
+    <span class="chip datos">Tabla de datos</span>
+    <h3>8. Carga</h3>
+  </div>
+  <p class="url"><span>Dirección</span><code>https://plane.tudominio.com/time/api/w/<b>tu-espacio</b>/export/carga</code></p>
+  <p class="fila">Cada fila es una persona en un día: cuánto puede trabajar, cuánto tiene planificado y cuánto registró.</p>
+  <p class="label">Ejemplo de lo que trae</p>
+  <table class="sample"><thead><tr><th>Persona</th><th>Día</th><th>Capacidad (min)</th><th>Planificado (min)</th><th>Registrado (min)</th></tr></thead>
+  <tbody><tr><td class="">Diego Martin</td><td class="">2026-11-16</td><td class="num">480</td><td class="num">360</td><td class="num">0</td></tr><tr><td class="">Diego Martin</td><td class="">2026-11-17</td><td class="num">480</td><td class="num">280</td><td class="num">0</td></tr><tr><td class="">Diego Martin</td><td class="">2026-11-18</td><td class="num">480</td><td class="num">448</td><td class="num">0</td></tr><tr><td class="">Diego Martin</td><td class="">2026-11-19</td><td class="num">480</td><td class="num">448</td><td class="num">0</td></tr><tr><td class="">Diego Martin</td><td class="">2026-11-20</td><td class="num">480</td><td class="num">348</td><td class="num">0</td></tr></tbody></table>
+  </div>
+  <p class="label">Columnas</p>
+  <dl><dt>ID persona · Persona</dt><dd>La persona. Une con Personas.</dd><dt>Día</dt><dd>El día.</dd><dt>Capacidad (min)</dt><dd>Tiempo disponible ese día (0 si no es laborable).</dd><dt>Planificado (min)</dt><dd>Estimaciones de sus tareas repartidas entre sus días, desde el inicio hasta la entrega de cada tarea (como la carga de trabajo de ClickUp).</dd><dt>Registrado (min)</dt><dd>Tiempo que registró ese día.</dd></dl>
+  <p class="label">Filtrar por fechas (opcional), añadiendo al final de la dirección</p>
+  <table class="params"><tbody><tr><td><code>desde</code></td><td>Primer día</td><td><code>export/carga?desde=2026-11-02</code></td></tr><tr><td><code>hasta</code></td><td>Último día (como mucho tres meses después)</td><td><code>export/carga?desde=2026-11-02&amp;hasta=2027-01-31</code></td></tr></tbody></table>
+  <p class="nota">Sin parámetros trae cuatro semanas desde el lunes de esta semana. Solo cuenta tareas sin terminar.</p>
+</section>
+
+<section class="tabla keep">
+<h2>5. Publicar en Power BI Service</h2>
+<ol class="steps">
+  <li>Publica el informe desde Power BI Desktop (<b class="ui">Inicio</b> → <b class="ui">Publicar</b>).</li>
+  <li>En Power BI Service, abre el modelo semántico → <b class="ui">Configuración</b> → <b class="ui">Credenciales del origen de datos</b> → <b class="ui">Editar credenciales</b>: autenticación <b class="ui">Anónima</b>, nivel de privacidad <b class="ui">Organizativo</b> y marca <b class="ui">Omitir conexión de prueba</b>.</li>
+  <li>En <b class="ui">Actualización programada</b>, actívala y elige cada cuánto (por ejemplo, cada mañana).</li>
+</ol>
+<p>No hace falta puerta de enlace (<i>gateway</i>): Plane está en Internet. El token queda guardado dentro del fichero <code>.pbix</code>; comparte el informe publicado, no el fichero.</p>
+</section>
+
+<section class="tabla keep">
+<h2>6. Si algo falla</h2>
+<table class="trouble"><tbody>
+<tr><td>401</td><td>El token está mal copiado, caducó o se borró. Crea otro y cámbialo en <b class="ui">Archivo</b> → <b class="ui">Opciones y configuración</b> → <b class="ui">Configuración de origen de datos</b>.</td></tr>
+<tr><td>404 «Espacio no encontrado»</td><td>El nombre del espacio de la dirección está mal, o el dueño del token no es miembro de ese espacio.</td></tr>
+<tr><td>404 «No existe la tabla»</td><td>El final de la dirección está mal escrito. Las tablas son: proyectos, tareas, horas, responsables, personas, ciclos, modulos y carga (sin tildes).</td></tr>
+<tr><td>400</td><td>Una fecha de <code>desde</code> o <code>hasta</code> no tiene el formato AAAA-MM-DD, o en <i>carga</i> el periodo pasa de tres meses.</td></tr>
+<tr><td>429</td><td>Demasiadas peticiones en un minuto. Espera un minuto y vuelve a actualizar; si pasa a menudo, pide al administrador que suba el límite (<code>API_KEY_RATE_LIMIT</code>).</td></tr>
+<tr><td>Faltan horas de otras personas</td><td>El token no es de un administrador del espacio: solo trae las tuyas.</td></tr>
+<tr><td>No aparece un proyecto</td><td>El dueño del token no es miembro de ese proyecto, o el proyecto está archivado.</td></tr>
+</tbody></table>
+</section>
+
+</body></html>

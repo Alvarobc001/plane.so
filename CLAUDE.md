@@ -41,7 +41,8 @@ upstream/              compose, variables y Caddyfile oficiales de la v1.4.3, pa
 local/                 pruebas en el PC: Traefik (hace de EasyPanel) y Mailpit
 e2e/                   batería Playwright (24 pruebas: Plane entero + módulo de tiempo)
 scripts/               siembra del espacio de ejemplo, volcado de la API y exportación a CSV
-docs/                  extraer-datos.md (Power BI, Excel, API)
+docs/                  Guia-Power-BI.pdf (para quien hace informes) y su fuente guia-power-bi.html;
+                       extraer-datos.md (referencia técnica de la API)
 ```
 
 ## Decisiones y por qué
@@ -90,6 +91,14 @@ docs/                  extraer-datos.md (Power BI, Excel, API)
 - Los errores React #418/#423 de la consola son de Plane, no nuestros.
 
 **API y datos**
+
+- Para Power BI: `GET /time/api/w/<espacio>/export/<tabla>` (proyectos, tareas, responsables, horas, personas,
+  ciclos, modulos, carga). Una tabla plana por dirección, en CSV con comas, UTF-8, cabeceras en español, nombres en
+  vez de códigos, minutos enteros y fechas AAAA-MM-DD (para que no dependa de la configuración regional). Se
+  unen por las columnas `ID …`. Pensado para alguien que solo sabe Power BI: *Obtener datos → Web → Avanzado*
+  con `X-API-Key`. Las horas siguen la regla de siempre (propias, o de todos si es administrador).
+- La guía en PDF sale de `docs/guia-power-bi.html` (las muestras son datos ficticios de `acme`): si cambian las
+  tablas, se actualiza el HTML y se vuelve a imprimir a PDF (A4, con fondos).
 
 - API pública: `/api/v1/workspaces/<slug>/...`, cabecera `X-API-Key`, 60 peticiones/minuto por token
   (`API_KEY_RATE_LIMIT`; en local 600). Paginación por cursor (`per_page`, `next_cursor`,

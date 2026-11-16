@@ -121,7 +121,7 @@ const server = http.createServer(async (req, res) => {
       if (out && typeof out.csv === 'string') {
         return send(res, 200, out.csv, {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="horas-${url.searchParams.get('from')}-${url.searchParams.get('to')}.csv"`,
+          'Content-Disposition': `attachment; filename="${out.filename}"`,
         });
       }
       return send(res, 200, out);
