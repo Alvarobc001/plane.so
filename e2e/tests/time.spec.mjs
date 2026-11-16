@@ -10,19 +10,25 @@ test.describe.configure({ mode: 'serial' });
 const API = '/time/api/w/acme';
 let admin, member; // páginas con sesión: administrador del espacio y Sofía (miembro)
 
-// POST desde Node a *.localhost (Node no lo resuelve en Windows: se fuerza 127.0.0.1)
-function nodePost(path, headers) {
+// Petición desde Node a *.localhost (Node no lo resuelve en Windows: se fuerza 127.0.0.1)
+function nodeRequest(method, path, headers) {
   const url = new URL(path, env.PLANE_URL);
+  const body = method === 'GET' ? null : '{}';
   return new Promise((resolve, reject) => {
     const req = https.request(url, {
-      method: 'POST', rejectUnauthorized: false,
+      method, rejectUnauthorized: false,
       lookup: (_h, o, cb) => (o?.all ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : cb(null, '127.0.0.1', 4)),
-      headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': 2 },
-    }, (res) => { res.resume(); resolve(res.statusCode); });
+      headers: body ? { ...headers, 'Content-Type': 'application/json', 'Content-Length': 2 } : headers,
+    }, (res) => {
+      let text = '';
+      res.on('data', (c) => (text += c));
+      res.on('end', () => resolve({ status: res.statusCode, text }));
+    });
     req.on('error', reject);
-    req.end('{}');
+    req.end(body);
   });
 }
+const nodePost = async (path, headers) => (await nodeRequest('POST', path, headers)).status;
 
 const call = async (page, method, path, body) => {
   const r = await browserFetch(page, `${API}/${path}`, {
@@ -192,6 +198,30 @@ test('dentro de Plane: «Carga de trabajo» en la barra lateral abre el módulo 
   await expect(member.frameLocator('iframe.time-frame').locator('.tabs a[aria-current="page"]')).toHaveText('Carga de trabajo');
   await member.goBack();
   await expect(member.locator('iframe.time-frame')).toHaveCount(0);
+});
+
+test('Power BI y scripts: con un token de la API de Plane se leen las horas, pero no se escribe', async () => {
+  // Token de Sofía (miembro), creado como lo crea Plane desde Settings → Personal access tokens
+  const token = await member.evaluate(async () => (await fetch('/api/users/api-tokens/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label: 'Prueba E2E', description: '', expired_at: null }),
+  })).json());
+  try {
+    const key = { 'X-API-Key': token.token };
+    const today = new Date().toLocaleDateString('sv');
+    const year = `from=${today.slice(0, 4)}-01-01&to=${today}`;
+    const mine = await nodeRequest('GET', `${API}/entries?${year}`, key);
+    expect(mine.status).toBe(200);
+    const sofia = JSON.parse((await nodeRequest('GET', '/time/api/me', key)).text).user.id;
+    expect(JSON.parse(mine.text).every((e) => e.user_id === sofia)).toBe(true);
+    expect((await nodeRequest('GET', `${API}/entries?${year}&user=all`, key)).status).toBe(403); // las de otros, no
+    expect(JSON.parse((await nodeRequest('GET', `${API}/estimates`, key)).text).length).toBeGreaterThan(0);
+    // Solo lectura: con el token no se escribe, aunque llegue con el Origin del propio dominio
+    expect(await nodePost(`${API}/timer/stop`, { ...key, origin: new URL(env.PLANE_URL).origin })).toBe(401);
+    expect((await nodeRequest('GET', '/time/api/me', { 'X-API-Key': 'plane_api_no_existe' })).status).toBe(401);
+  } finally {
+    await member.evaluate((id) => fetch(`/api/users/api-tokens/${id}/`, { method: 'DELETE' }), token.id);
+  }
 });
 
 test('informes: exportar CSV con lo registrado hoy', async () => {

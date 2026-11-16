@@ -9,7 +9,7 @@ adaptado a EasyPanel y con cuatro correcciones que encontraron las pruebas autom
 [Correcciones](#correcciones-respecto-al-compose-oficial)). Añade un **módulo de tiempo** al estilo de ClickUp
 (reloj por tarea, hoja de horas, carga de trabajo frente a capacidad e informes) en `https://tu-dominio/time/`,
 con la misma sesión de Plane (ver [sección 6](#6-módulo-de-tiempo)). La batería de Playwright de
-[`e2e/`](e2e/) pasa **23/23** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
+[`e2e/`](e2e/) pasa **24/24** sobre este mismo fichero, con un Traefik delante que hace de EasyPanel.
 
 ```
 docker-compose.yml     el que despliega EasyPanel
@@ -20,8 +20,30 @@ proxy/Caddyfile        el Caddyfile oficial más la ruta /time/
 upstream/              compose, variables y Caddyfile oficiales de la v1.4.3, para comparar al actualizar
 local/                 pruebas en tu PC: Traefik (hace de EasyPanel) y Mailpit (correo)
 e2e/                   batería Playwright
-scripts/               proyecto de ejemplo por la API y extracción de todos los endpoints
+scripts/               proyecto de ejemplo por la API, extracción de todos los endpoints y exportación a CSV
 ```
+
+---
+
+**Despliegue desde cero, en orden:** [1. Servidor](#1-servidor) (Ubuntu, usuario, SSH, DNS) →
+[2. EasyPanel](#2-instalar-easypanel) → [3. Repositorio](#3-el-repositorio-en-github) →
+[4. Desplegar](#4-desplegar-plane-en-easypanel) (variables y dominio) → [5. Configurar Plane](#5-configurar-plane).
+Para sacar los datos a Power BI o Excel: [docs/extraer-datos.md](docs/extraer-datos.md).
+
+### Antes de empezar
+
+- Un **VPS** recién creado con Ubuntu (tabla de abajo) y su IP.
+- Un **dominio** en el que puedas crear registros DNS (por ejemplo `plane.tudominio.com`).
+- Una cuenta de **correo SMTP** para las invitaciones y los avisos (la de tu proveedor de correo).
+- Una **clave SSH** en tu ordenador. Si no tienes, créala (en Windows, en PowerShell; en Mac o Linux, en la
+  terminal) y pulsa Intro a todo:
+
+  ```bash
+  ssh-keygen -t ed25519
+  ```
+
+  La clave pública queda en `~/.ssh/id_ed25519.pub` (en Windows, `C:\Users\TU_USUARIO\.ssh\id_ed25519.pub`).
+  Pégala en el panel del proveedor al crear el VPS, o súbela después con `ssh-copy-id root@IP_DEL_SERVIDOR`.
 
 ---
 
@@ -118,8 +140,8 @@ printf 'PermitRootLogin no\nPasswordAuthentication no\n' | sudo tee /etc/ssh/ssh
 sudo systemctl restart ssh
 ```
 
-> Si en tu ordenador no tienes clave SSH, créala antes con `ssh-keygen -t ed25519` y súbela con
-> `ssh-copy-id root@IP_DEL_SERVIDOR`. Si no, al desactivar las contraseñas te quedarías fuera.
+> Haz este paso solo si ya entras con tu clave SSH (ver [Antes de empezar](#antes-de-empezar)): al desactivar
+> las contraseñas, sin clave te quedarías fuera.
 
 Cortafuegos del propio servidor como segunda capa, con SSH permitido antes de activarlo:
 
@@ -146,10 +168,27 @@ getent hosts plane.tudominio.com
 
 ## 2. Instalar EasyPanel
 
-El instalador oficial necesita `root`, instala Docker y arranca EasyPanel:
+El instalador oficial necesita `root` y los puertos 80 y 443 libres. Instala Docker, activa Docker Swarm y
+arranca EasyPanel:
 
 ```bash
 curl -sSL https://get.easypanel.io | sudo sh
+```
+
+Si prefieres instalar Docker por separado, es lo mismo en dos pasos:
+
+```bash
+curl -sSL https://get.docker.com | sudo sh
+```
+
+```bash
+sudo docker run --rm -it -v /etc/easypanel:/etc/easypanel -v /var/run/docker.sock:/var/run/docker.sock:ro easypanel/easypanel setup
+```
+
+Comprueba que está en marcha (debe salir al menos un contenedor de `easypanel`):
+
+```bash
+sudo docker ps --format '{{.Names}}' | grep easypanel
 ```
 
 Cuando termine, abre en el navegador `http://IP_DEL_SERVIDOR:3000` y **crea en ese momento la cuenta de
@@ -160,19 +199,26 @@ entrarás por HTTPS y podrás **cerrar el puerto 3000** en el cortafuegos del pr
 
 ---
 
-## 3. Subir este proyecto a GitHub
+## 3. El repositorio en GitHub
 
-En tu ordenador, crea un repositorio vacío en GitHub (puede ser privado) y, desde la carpeta del proyecto:
+El proyecto está en **https://github.com/Alvarobc001/plane.so**, con dos ramas:
 
-```bash
-git remote add origin git@github.com:TU_USUARIO/plane-easypanel.git
-```
-
-```bash
-git push -u origin main
-```
+| Rama | Para qué |
+| --- | --- |
+| `main` | Lo que se despliega en el servidor |
+| `dev` | Cambios en curso. Se pasan a `main` cuando están probados |
 
 El repositorio no contiene ninguna clave: los secretos van solo en EasyPanel.
+
+Si algún día lo montas en otro repositorio, créalo vacío en GitHub y, desde la carpeta del proyecto:
+
+```bash
+git remote set-url origin https://github.com/TU_USUARIO/TU_REPO.git
+```
+
+```bash
+git push -u origin main dev
+```
 
 ---
 
@@ -183,8 +229,8 @@ El repositorio no contiene ninguna clave: los secretos van solo en EasyPanel.
 1. **Create project** → por ejemplo `plane`.
 2. Dentro del proyecto: **+ Service** → **Compose**, con nombre `plane`.
 3. Pestaña **Source** → **Git**:
-   - **Repository URL**: la de tu repositorio (`https://github.com/TU_USUARIO/plane-easypanel.git`, o la
-     SSH si es privado).
+   - **Repository URL**: `https://github.com/Alvarobc001/plane.so.git` (si el repositorio es privado, la SSH:
+     `git@github.com:Alvarobc001/plane.so.git`).
    - **Branch**: `main`
    - **Build Path**: `/`
    - **Docker Compose File**: `docker-compose.yml`
@@ -195,22 +241,57 @@ El repositorio no contiene ninguna clave: los secretos van solo en EasyPanel.
 ### 4.2. Variables de entorno
 
 En la pestaña **Environment**, EasyPanel carga el contenido de [`.env.example`](.env.example). Deja
-activado **Create .env file** y:
+activado **Create .env file** y rellénalo así:
 
-1. Pon tu subdominio en `APP_DOMAIN` (sin `https://`), por ejemplo `APP_DOMAIN=plane.tudominio.com`.
-2. Genera los secretos en el servidor (por SSH) con este comando, que imprime las seis líneas ya listas para
-   pegar:
+1. En `APP_DOMAIN`, tu subdominio **sin** `https://` ni barra final: `APP_DOMAIN=plane.tudominio.com`.
+2. Genera los seis secretos en el servidor (por SSH). Este comando imprime las seis líneas ya listas:
 
    ```bash
    for v in POSTGRES_PASSWORD RABBITMQ_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY SECRET_KEY LIVE_SERVER_SECRET_KEY; do echo "$v=$(openssl rand -hex 24)"; done
    ```
 
-3. Sustituye en el editor las seis líneas vacías por las generadas y guarda.
-4. Guarda también una copia de esas claves en tu gestor de contraseñas. **`POSTGRES_PASSWORD` y
-   `RABBITMQ_PASSWORD` no se pueden cambiar después del primer despliegue**: quedan grabadas en los
-   volúmenes de datos.
+3. Sustituye en el editor las seis líneas vacías por las generadas, deja el resto como está y guarda.
+4. Guarda también una copia de todo el fichero en tu gestor de contraseñas.
 
-Si se queda alguna vacía, el despliegue se para con un mensaje como `Falta SECRET_KEY en el .env`.
+| Variable | Obligatoria | Qué es | ¿Se puede cambiar después? |
+| --- | --- | --- | --- |
+| `APP_DOMAIN` | Sí | El subdominio de Plane. Debe ser el mismo que pongas en **Domains** (4.3) | Sí, cambiando también el dominio en EasyPanel |
+| `POSTGRES_PASSWORD` | Sí | Contraseña de la base de datos (interna, nadie la escribe a mano) | **No**: queda grabada en el volumen de datos |
+| `RABBITMQ_PASSWORD` | Sí | Contraseña de la cola de tareas (interna) | **No**: queda grabada en su volumen |
+| `AWS_ACCESS_KEY_ID` | Sí | Usuario del almacén de adjuntos (MinIO, interno). No es una cuenta de Amazon | No |
+| `AWS_SECRET_ACCESS_KEY` | Sí | Contraseña del almacén de adjuntos | No |
+| `SECRET_KEY` | Sí | Firma las sesiones de Plane | Sí, pero cierra la sesión de todo el mundo |
+| `LIVE_SERVER_SECRET_KEY` | Sí | Clave entre la API y el editor en tiempo real | Sí |
+| `FILE_SIZE_LIMIT` | No (5 MB) | Tamaño máximo de un adjunto, en bytes: `10485760` son 10 MB | Sí |
+| `TRUSTED_PROXIES` | No | De qué proxies se fía para saber la IP real. Déjalo en `private_ranges`; si pones Cloudflare delante, añade sus rangos de IP | Sí |
+| `WEBHOOK_ALLOWED_HOSTS`, `WEBHOOK_ALLOWED_IPS` | No (vacías) | Destinos de webhooks dentro de tu red privada que se permiten (protección SSRF) | Sí |
+| `API_KEY_RATE_LIMIT` | No (`60/minute`) | Peticiones por minuto de cada token de la API. Súbelo a `300/minute` si un informe de Power BI se corta con el error 429 | Sí |
+| `GUNICORN_WORKERS` | No (`1`) | Procesos de la API de Plane: `2` con 8 GB de RAM o más | Sí |
+
+Los secretos deben ser **solo letras y números** (van dentro de URLs de conexión); los del comando ya lo son.
+Si se queda alguno vacío, el despliegue se para con un mensaje como `Falta SECRET_KEY en el .env`.
+
+Al terminar, el editor debe quedar así (con tus valores):
+
+```text
+APP_DOMAIN=plane.tudominio.com
+
+POSTGRES_PASSWORD=<48 letras y números generados>
+RABBITMQ_PASSWORD=<48 letras y números generados>
+AWS_ACCESS_KEY_ID=<48 letras y números generados>
+AWS_SECRET_ACCESS_KEY=<48 letras y números generados>
+SECRET_KEY=<48 letras y números generados>
+LIVE_SERVER_SECRET_KEY=<48 letras y números generados>
+
+FILE_SIZE_LIMIT=5242880
+TRUSTED_PROXIES=private_ranges
+WEBHOOK_ALLOWED_HOSTS=
+WEBHOOK_ALLOWED_IPS=
+API_KEY_RATE_LIMIT=60/minute
+GUNICORN_WORKERS=1
+```
+
+El módulo de tiempo no necesita variables propias: toma la base de datos y el dominio de estas.
 
 ### 4.3. Dominio
 
@@ -250,6 +331,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://plane.tudominio.com/api/instanc
    activado por defecto.
 4. Entra en `https://plane.tudominio.com`, inicia sesión con el mismo correo y contraseña, y crea el espacio
    de trabajo.
+5. Para informes en Power BI o Excel, crea un token de la API (avatar → *Settings* → *Personal access
+   tokens*) y sigue [docs/extraer-datos.md](docs/extraer-datos.md).
 
 ### Comprobación de seguridad (opcional)
 
@@ -312,6 +395,9 @@ Plane cambia esa estructura, los campos de tiempo dejan de aparecer pero Plane s
 - solo se ven tareas de proyectos de los que se es miembro, y los invitados no registran horas;
 - cada entrada solo la edita o borra quien la registró;
 - las escrituras solo se aceptan desde el propio dominio (protección CSRF).
+- con un token de la API de Plane (cabecera `X-API-Key`) solo se **leen** horas, estimaciones y capacidad,
+  con los mismos permisos de su usuario; con un token no se registra ni se borra nada. Así se conectan Power
+  BI, Excel o scripts: ver [docs/extraer-datos.md](docs/extraer-datos.md).
 
 Los datos van en la misma base de datos de Plane, en un esquema aparte (`time_tracking`) que el servicio crea
 al arrancar. No toca ninguna tabla de Plane, y las copias de la sección 7 ya lo incluyen.
@@ -480,6 +566,16 @@ Para ver Plane y el módulo de tiempo con datos, hay un espacio de ejemplo `acme
    ```bash
    node scripts/api-export.mjs
    ```
+
+4. Para informes, exporta el espacio a una tabla CSV por fichero (proyectos, tareas, responsables, ciclos,
+   módulos, horas, estimaciones…) en `scripts/export/<espacio>/csv/`, lista para Power BI o Excel:
+
+   ```bash
+   node scripts/export-csv.mjs 2025
+   ```
+
+   Cómo montar el informe, o conectar Power BI directamente a la API, en
+   [docs/extraer-datos.md](docs/extraer-datos.md).
 
 La API pública de Plane v1.4.3 no cubre las estimaciones (sus rutas no están registradas y dan `404`). Tampoco
 cubre páginas, vistas, webhooks, tokens ni la creación de espacios: esos los crea la siembra desde la propia

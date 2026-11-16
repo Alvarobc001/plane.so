@@ -71,7 +71,7 @@ async function api(req, res, url) {
     if (req.headers.origin !== ORIGIN) throw new HttpError(403, 'Origen no permitido');
     if (!String(req.headers['content-type'] || '').startsWith('application/json')) throw new HttpError(415, 'Se espera JSON');
   }
-  const user = await currentUser(req.headers.cookie);
+  const user = await currentUser(req.headers, req.method);
   if (!user) throw new HttpError(401, 'Inicia sesión en Plane');
 
   const parts = url.pathname.replace(/^\/time\/api\/|\/$/g, '').split('/');
